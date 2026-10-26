@@ -1,0 +1,157 @@
+[
+  {
+    "file": "receipts/2026-10-09_bayou-shine.jpg",
+    "extracted": {
+      "merchant": "BAYOU SHINE CAR WASH",
+      "date": "2026-10-09",
+      "items": [
+        {
+          "description": "Exterior wash",
+          "amount": 16.63
+        }
+      ],
+      "subtotal": 16.63,
+      "tax": 1.37,
+      "total": 18.0,
+      "card_last4": "9001",
+      "kind": "business",
+      "reason": "Car wash keeps vehicles clean for Uber/Lyft riders and Turo renters."
+    }
+  },
+  {
+    "file": "receipts/2026-10-11_lone-star-burger.jpg",
+    "extracted": {
+      "merchant": "LONE STAR BURGER 1047",
+      "date": "2026-10-11",
+      "items": [
+        {
+          "description": "Burger combo",
+          "amount": 11.49
+        },
+        {
+          "description": "Large drink upgrade",
+          "amount": 1.74
+        }
+      ],
+      "subtotal": 13.23,
+      "tax": 1.09,
+      "total": 14.32,
+      "card_last4": "1005",
+      "kind": "personal",
+      "reason": "A driver meal during local shifts is personal, not a rideshare business expense."
+    }
+  },
+  {
+    "file": "receipts/2026-10-12_detailpro.jpg",
+    "extracted": {
+      "merchant": "DETAILPRO SUPPLY CO",
+      "date": "2026-10-12",
+      "items": [
+        {
+          "description": "Microfiber towels 12pk",
+          "amount": 15.99
+        },
+        {
+          "description": "Interior cleaner spray",
+          "amount": 9.99
+        },
+        {
+          "description": "Seat back protector",
+          "amount": 9.7
+        }
+      ],
+      "subtotal": 35.68,
+      "tax": 2.94,
+      "total": 38.62,
+      "card_last4": "9001",
+      "kind": "business",
+      "reason": "Cleaning supplies maintain vehicles used for Uber, Lyft, and Turo."
+    }
+  },
+  {
+    "file": "receipts/2026-10-18_bayou-fresh.jpg",
+    "extracted": {
+      "merchant": "BAYOU FRESH MARKET #482",
+      "date": "2026-10-18",
+      "items": [
+        {
+          "description": "Ribeye steaks 2pk",
+          "amount": 32.94
+        },
+        {
+          "description": "Salmon fillet",
+          "amount": 16.92
+        },
+        {
+          "description": "Chicken thighs",
+          "amount": 11.84
+        },
+        {
+          "description": "Coffee beans",
+          "amount": 9.98
+        },
+        {
+          "description": "Eggs 18ct",
+          "amount": 5.47
+        },
+        {
+          "description": "Whole milk",
+          "amount": 4.28
+        },
+        {
+          "description": "Strawberries",
+          "amount": 3.98
+        },
+        {
+          "description": "Avocados 4ct",
+          "amount": 5.0
+        },
+        {
+          "description": "Bread",
+          "amount": 3.48
+        },
+        {
+          "description": "Bananas",
+          "amount": 3.38
+        },
+        {
+          "description": "Paper towels T",
+          "amount": 12.97
+        },
+        {
+          "description": "Laundry detergent T",
+          "amount": 13.97
+        }
+      ],
+      "subtotal": 124.21,
+      "tax": 2.22,
+      "total": 126.43,
+      "card_last4": "9001",
+      "kind": "personal",
+      "reason": "Groceries are household food, not Uber/Lyft/Turo vehicle expenses."
+    }
+  },
+  {
+    "file": "receipts/2026-10-24_bayou-shine.jpg",
+    "extracted": {
+      "merchant": "BAYOU SHINE CAR WASH",
+      "date": "2026-10-24",
+      "items": [
+        {
+          "description": "Exterior wash",
+          "amount": 18.0
+        },
+        {
+          "description": "Interior detail",
+          "amount": 24.0
+        }
+      ],
+      "subtotal": 42.0,
+      "tax": 3.47,
+      "total": 45.47,
+      "card_last4": "9001",
+      "kind": "business",
+      "reason": "Car wash and detailing maintains vehicles used for Uber/Lyft/Turo service."
+    }
+  }
+]

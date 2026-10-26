@@ -1,0 +1,66 @@
+[
+  {
+    "file": "2026-10-14_parking.wav",
+    "recorded": "2026-10-14",
+    "transcript": "twelve dollars cash for parking at Hobby Airport waiting on a rider.",
+    "parsed": {
+      "date": "2026-10-14",
+      "amount": 12,
+      "payee": "Hobby Airport Parking",
+      "description": "Parking at Hobby Airport waiting on a rider",
+      "business_line": "rideshare",
+      "schedule_c_line": "9 Car and truck expenses",
+      "assumption": null,
+      "question": null
+    },
+    "status": "booked"
+  },
+  {
+    "file": "2026-10-21_water.wav",
+    "recorded": "2026-10-21",
+    "transcript": "bought a case of water for riders. 999, paid cash.",
+    "parsed": {
+      "date": "2026-10-21",
+      "amount": 9.99,
+      "payee": "Unknown",
+      "description": "Case of water for riders",
+      "business_line": "rideshare",
+      "schedule_c_line": "22 Supplies",
+      "assumption": "Heard 999, read as $9.99",
+      "question": null
+    },
+    "status": "booked (Heard 999, read as $9.99)"
+  },
+  {
+    "file": "2026-10-25_carwash-tip.wav",
+    "recorded": "2026-10-25",
+    "transcript": "Yesterday I gave the car wash guys guys a five dollar cash tip for the Turo car.,",
+    "parsed": {
+      "date": "2026-10-24",
+      "amount": 5,
+      "payee": "car wash guys",
+      "description": "cash tip for Turo car",
+      "business_line": "turo",
+      "schedule_c_line": "9 Car and truck expenses",
+      "assumption": null,
+      "question": null
+    },
+    "status": "booked"
+  },
+  {
+    "file": "2026-10-27_lunch.wav",
+    "recorded": "2026-10-27",
+    "transcript": "eight fifty cash for lunch. That one's personal.",
+    "parsed": {
+      "date": "2026-10-27",
+      "amount": 8.5,
+      "payee": "Unknown",
+      "description": "Lunch",
+      "business_line": "personal",
+      "schedule_c_line": null,
+      "assumption": "Heard eight fifty, read as $8.50",
+      "question": null
+    },
+    "status": "left out: personal"
+  }
+]

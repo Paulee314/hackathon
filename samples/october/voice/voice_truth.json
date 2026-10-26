@@ -1,0 +1,34 @@
+[
+  {
+    "file": "2026-10-14_parking.wav",
+    "spoken": "Twelve dollars cash for parking at Hobby Airport, waiting on a rider.",
+    "date": "2026-10-14",
+    "amount": "12.00",
+    "business_line": "rideshare",
+    "line": "9"
+  },
+  {
+    "file": "2026-10-21_water.wav",
+    "spoken": "Bought a case of water for riders. Nine ninety nine, paid cash.",
+    "date": "2026-10-21",
+    "amount": "9.99",
+    "business_line": "rideshare",
+    "line": "22"
+  },
+  {
+    "file": "2026-10-25_carwash-tip.wav",
+    "spoken": "Yesterday I gave the car wash guys a five dollar cash tip, for the Turo car.",
+    "date": "2026-10-24",
+    "amount": "5.00",
+    "business_line": "turo",
+    "line": "9"
+  },
+  {
+    "file": "2026-10-27_lunch.wav",
+    "spoken": "Eight fifty cash for lunch. That one's personal.",
+    "date": "2026-10-27",
+    "amount": "8.50",
+    "business_line": "personal",
+    "line": null
+  }
+]
