@@ -8,6 +8,7 @@ Schedule C lines.
 from __future__ import annotations
 
 import json
+import re
 from collections import OrderedDict
 from datetime import date, timedelta
 from decimal import Decimal
@@ -15,8 +16,11 @@ from pathlib import Path
 from statistics import median
 from typing import Dict, List, Optional, Tuple
 
+from agents import close as close_agent
+from agents.categorize import merchant_key
 from agents.receipts import assess
 from agents.voice import to_transaction
+from car.profit import ride_profits, summary as ride_summary
 from car.telemetry import load_drives, load_offers, load_profile, load_tires
 from ingest.load import load_folder
 from ingest.schema import Transaction
@@ -133,6 +137,11 @@ class Books:
         self.tires = load_tires(self.month_dir)
         self.offers = load_offers(self.month_dir)
         self.profile = load_profile(self.month_dir) or {}
+        self.close = close_agent.run(self.txns, self.month_dir)
+        path = _first_existing(ROOT / "data" / "ledger" / "categories.json", ROOT / "tests" / "fixtures" / "categories.json")
+        self.categories = json.loads(path.read_text()) if path else {}
+        self._rides = None
+        self._items = None
 
     # ---- inputs -------------------------------------------------------------------------
     def _receipts(self) -> List[Dict]:
@@ -177,7 +186,19 @@ class Books:
 
     # ---- review queue -------------------------------------------------------------------
     def review_items(self) -> List[Dict]:
+        if self._items is not None:
+            return self._items
         items = []
+        holding = {"possible_duplicate", "deposit_without_payout", "unidentified_income"}
+        for e in sorted(self.close["exceptions"], key=lambda e: e["date"]):
+            first = e["accounts"][0]
+            where = PLATFORM.get(first.split("_")[0], account_name(first)) if first.endswith("_balance") else account_name(first)
+            items.append({
+                "id": e["id"], "source": "agent", "type": e["type"], "check": e["check"], "amount": e["at_stake"],
+                "tag": f"{where}, {short_date(e['date'])}", "title": e["title"], "body": e["body"], "rows": e["rows"],
+                "suggestion": e["suggestion"], "choices": e["choices"], "evidence": {},
+                "found_by": "Found by the close agent's checks", "holds": e["txn_ids"] if e["type"] in holding else [],
+            })
         for r in self.receipts:
             if not r["flags"]:
                 continue
@@ -241,40 +262,70 @@ class Books:
         decisions = self.state.get("decisions", {})
         for it in items:
             it["decision"] = decisions.get(it["id"])
+        items.sort(key=lambda i: -Decimal(i["amount"]))  # the most money first
+        self._items = items
         return items
 
     def pending(self) -> List[Dict]:
         return [i for i in self.review_items() if not i["decision"]]
 
-    def _held_and_personal(self):
-        held, personal = set(), set()
+    def _effects(self):
+        """What the driver's answers do to the books: rows held back while an item waits, rows whose treatment
+        an answer changes, and amounts an answer adds (a Lyft shortfall booked as a fee)."""
+        held, override, extras = set(), {}, []
         for it in self.review_items():
             choice = (it["decision"] or {}).get("choice")
             if choice is None:
                 held.update(it["holds"])
-            elif choice == "personal":
-                personal.update(it["holds"])
-        return held, personal
+                continue
+            kind = it.get("type") or it["source"]
+            for h in it["holds"]:
+                if kind == "receipt" and choice == "personal":
+                    override[h] = ("other", "Personal, kept out")
+                elif kind == "possible_duplicate" and choice == "duplicate":
+                    override[h] = ("other", "Duplicate charges, disputed")
+                elif kind == "deposit_without_payout":
+                    override[h] = ("income", "Other Turo income") if choice == "income" else ("other", "Money in, not yet explained")
+                elif kind == "unidentified_income":
+                    override[h] = ("income", "Other income") if choice == "business" else ("other", "Personal, kept out")
+            if kind == "deposit_short":
+                extras.append(("expense", "Platform fees", Decimal(it["amount"])) if choice == "fee"
+                              else ("other", "Lyft still owes you", Decimal(it["amount"])))
+        return held, override, extras
+
+    def checks(self) -> List[Dict]:
+        items = self.review_items()
+        out = []
+        for c in self.close["checks"]:
+            related = [i for i in items if i.get("check") == c["id"]]
+            status = "passes" if c["ok"] else ("answered" if related and all(i["decision"] for i in related) else "needs you")
+            out.append({**c, "status": status})
+        return out
 
     # ---- totals -------------------------------------------------------------------------
     def totals(self) -> Dict:
         income, expense, other = OrderedDict(), OrderedDict(), OrderedDict()
-        held, personal = self._held_and_personal()
+        held, override, extras = self._effects()
         in_review = ZERO
         for t in self.all_txns():
             role, group = classify(t)
             if t.txn_id in held:
                 in_review += abs(t.amount)
                 continue
-            if t.txn_id in personal:
-                other["Personal, kept out"] = other.get("Personal, kept out", ZERO) + abs(t.amount)
-                continue
+            if t.txn_id in override:
+                role, group = override[t.txn_id]
+                if role == "other":
+                    other[group] = other.get(group, ZERO) + abs(t.amount)
+                    continue
             if role == "income":
                 income[group] = income.get(group, ZERO) + t.amount
             elif role == "expense":
                 expense[group] = expense.get(group, ZERO) - t.amount
             elif role in ("loan", "owner", "unexplained"):
                 other[group] = other.get(group, ZERO) + abs(t.amount)
+        for role, group, amount in extras:
+            bucket = expense if role == "expense" else other
+            bucket[group] = bucket.get(group, ZERO) + amount
         earned = sum(income.values(), ZERO)
         spent = sum(expense.values(), ZERO)
         expense = OrderedDict(sorted(expense.items(), key=lambda kv: -kv[1]))
@@ -345,6 +396,48 @@ class Books:
             start += timedelta(days=7)
         return out
 
+    def ride_profit(self) -> Dict:
+        if self._rides is None:
+            rides = ride_profits(self.month_dir, self.txns)
+            self._rides = {"rides": rides, "summary": ride_summary(rides, self.profile)}
+        return self._rides
+
+    def schedule_c(self) -> Optional[Dict]:
+        """Spending rolled up by Schedule C line, from Muse Spark's labels, actual-expense method."""
+        if not self.categories:
+            return None
+        held, override, extras = self._effects()
+        lines, vehicle = {}, ZERO
+        for t in self.all_txns():
+            if t.amount >= 0 or t.kind in ("earning", "payout") or t.txn_id in held:
+                continue
+            if t.txn_id in override and override[t.txn_id][0] != "expense":
+                continue
+            cat = self.categories.get(merchant_key(t))
+            if cat:
+                if cat["treatment"] not in ("expense", "vehicle"):
+                    continue
+                line, is_vehicle = cat["schedule_c_line"] or "27a Other expenses", cat["treatment"] == "vehicle"
+            elif t.kind == "cash" and t.category:
+                line, is_vehicle = t.category, False
+            else:
+                continue
+            lines[line] = lines.get(line, ZERO) - t.amount
+            if is_vehicle:
+                vehicle -= t.amount
+        for role, group, amount in extras:
+            if role == "expense":
+                lines["10 Commissions and fees"] = lines.get("10 Commissions and fees", ZERO) + amount
+
+        def order(line):
+            m = re.match(r"(\d+)([a-z]?)", line)
+            return (int(m.group(1)), m.group(2)) if m else (99, line)
+        ordered = OrderedDict(sorted(lines.items(), key=lambda kv: order(kv[0])))
+        miles = sum(d.miles for d in self.drives)
+        return {"gross_receipts": self.totals()["earned"], "lines": ordered, "total_expenses": sum(ordered.values(), ZERO),
+                "vehicle_costs": vehicle, "rideshare_car_miles": round(miles, 1),
+                "standard_mileage_amount": Decimal(str(round(miles * 0.725, 2)))}
+
     # ---- tire ---------------------------------------------------------------------------
     def tire(self) -> Optional[Dict]:
         if not self.tires:
@@ -409,7 +502,8 @@ class Books:
             {"id": "review", "value": str(n), "label": "to review" if n else "all reviewed",
              "tone": "bubblegum" if n else "sky", "size": "l", "note": money(pending_total) if n else ""},
             {"id": "turo", "value": money0(turo["total"]), "label": f"Turo, {turo['trips']} trips", "tone": "sky", "size": "m"},
-            {"id": "rides", "value": str(rides["rides"]), "label": "rides", "tone": "white", "size": "m"},
+            {"id": "rides", "value": money0(self.ride_profit()["summary"]["all"]["per_hour"]) + "/hr",
+             "label": "after car costs", "tone": "white", "size": "m"},
         ]
         if tire and tire.get("low"):
             bubbles.append({"id": "tire", "value": "", "label": "Tire is low" if tire["ongoing"] else "Tire ran low",
@@ -436,10 +530,22 @@ class Books:
                 not_counted.insert(0, ["Waiting on your review", money(t["in_review"])])
             if not_counted:
                 sections.append({"title": "Not counted in profit", "total": "", "rows": not_counted})
+            label = {"passes": "Passes", "answered": "Answered", "needs you": "Needs you"}
+            checks = self.checks()
+            sections.append({"title": "Tie-out checks", "total": f"{sum(1 for c in checks if c['status'] != 'needs you')} of {len(checks)} done",
+                             "rows": [[c["title"], label[c["status"]]] for c in checks]})
+            sc = self.schedule_c()
+            if sc:
+                sections.append({"title": "Schedule C lines, actual-expense method", "total": money(sc["total_expenses"]),
+                                 "rows": [["1 Gross receipts", money(sc["gross_receipts"])]] + [[k, money(v)] for k, v in sc["lines"].items()]})
             closed = not self.pending()
+            note = "Car loan payments aren't expenses. The interest part is, once the loan statement is in."
+            if sc:
+                note += (f" Line 9 includes {money(sc['vehicle_costs'])} of charging, car insurance and washes that count only "
+                         f"under the actual-expense method. At 72.5¢ a mile, the rideshare car's {sc['rideshare_car_miles']:,} miles "
+                         f"come to {money(sc['standard_mileage_amount'])} under the standard rate.")
             return {"id": "profit", "title": f"{self.first_day.strftime('%B')} profit" if closed else "Profit so far",
-                    "value": money(t["profit"]), "sections": sections,
-                    "note": "Car loan payments aren't expenses. The interest part is, once the loan statement is in."}
+                    "value": money(t["profit"]), "sections": sections, "note": note}
         if which == "turo":
             tu = self.turo()
             return {"id": "turo", "title": "Turo this month", "value": money(tu["total"]),
@@ -448,9 +554,19 @@ class Books:
                                   "rows": [[f"{short_date(x['date'])}, {x['car']}", money(x["amount"])] for x in tu["list"]]}]}
         if which == "rides":
             r = self.rides()
-            return {"id": "rides", "title": "Rides this month", "value": str(r["rides"]),
-                    "sub": f"{r['uber_rides']} Uber, {r['lyft_rides']} Lyft, {r['declined_offers']} offers declined",
+            s = self.ride_profit()["summary"]
+            a, cp = s["all"], s["cost_parts"]
+            far, near = s["pickup_over_3_miles"], s["pickup_3_miles_or_less"]
+            return {"id": "rides", "title": "What your rides really paid", "value": f"{money(a['per_hour'])} an hour",
+                    "sub": f"After car costs, across {a['rides']} rides ({r['uber_rides']} Uber, {r['lyft_rides']} Lyft) and {a['hours']} hours",
                     "sections": [
+                        {"title": "After car costs", "total": money(a["true_profit"]), "rows": [
+                            ["Fares and tips", money(a["fare"])], ["Electricity", money(-cp["energy"])],
+                            ["Wear on the car", money(-cp["depreciation"])], ["Tire wear", money(-cp["tires"])]]},
+                        {"title": "Is a long pickup worth it?", "total": "", "rows": [
+                            [f"Pickups over 3 miles, {far['rides']} rides" if far else "Pickups over 3 miles", f"{money(far['per_hour'])}/hr" if far else "None"],
+                            [f"3 miles or less, {near['rides']} rides" if near else "3 miles or less", f"{money(near['per_hour'])}/hr" if near else "None"],
+                            [f"Rides under your {money0(s['target_per_hour'])}/hr goal", str(s["below_target"])]]},
                         {"title": "Money", "total": "", "rows": [["Uber", money(r["uber_earned"])], ["Lyft", money(r["lyft_earned"])],
                                                                  ["Tips, included above", money(r["tips"])]]},
                         {"title": "Driving", "total": "", "rows": [["Miles driven", f"{r['miles_driven']:,}"],
@@ -477,6 +593,14 @@ class Books:
                             "Your own drives will show the real number over time."}
         return None
 
+    def _ride_context(self) -> Dict:
+        s = self.ride_profit()["summary"]
+        keep = ("at", "platform", "fare", "pickup_miles", "miles", "minutes", "true_profit", "per_hour")
+        return {**{k: v for k, v in s.items() if k not in ("best", "worst")},
+                "best_by_true_profit_per_hour": [{k: r[k] for k in keep} for r in s["best"]],
+                "worst_by_true_profit_per_hour": [{k: r[k] for k in keep} for r in s["worst"]],
+                "how": "fare and tips minus electricity, wear on the car and tire wear, with miles to the pickup charged to the ride"}
+
     def context(self) -> Dict:
         """The facts Muse Spark may use to answer a question. Small on purpose."""
         t, tu, r, tr = self.totals(), self.turo(), self.rides(), self.tire()
@@ -495,6 +619,11 @@ class Books:
             "weeks": [{**w, "uber": m(w["uber"]), "lyft": m(w["lyft"]), "turo": m(w["turo"])} for w in self.weeks()],
             "turo": {"trips": tu["trips"], "earned": m(tu["total"]), "adjustments": m(tu["adjustments"])},
             "rides": rides,
+            "true_profit_per_ride": self._ride_context(),
+            "checks": [{"check": c["title"], "status": c["status"], "detail": c["detail"]} for c in self.checks()],
+            "schedule_c_actual_expense_method": None if not self.schedule_c() else {
+                k: (m(v) if isinstance(v, Decimal) else ({kk: m(vv) for kk, vv in v.items()} if isinstance(v, dict) else v))
+                for k, v in self.schedule_c().items()},
             "tire": None if not tr else {**{k: v for k, v in tr.items() if k != "series"},
                                           "also": "A low tire wears faster and grips less in the rain; there is no dollar figure for wear yet."},
             "cash_logged": [{"date": c.date, "amount": m(-c.amount), "what": c.description, "line": c.business_line}

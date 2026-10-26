@@ -22,6 +22,9 @@ python3 synth/generate_october.py        # writes the synthetic month to samples
 python3 -m ingest.load samples/october   # normalizes every export into data/ledger/transactions.csv
 python3 -m agents.receipts               # Muse Spark reads the receipt photos and attaches each to its card charge
 python3 -m agents.voice                  # Muse Voice Transcribe + Muse Spark turn voice notes into cash entries
+python3 -m agents.categorize             # Muse Spark maps every merchant to a Schedule C line
+python3 -m agents.close                  # tie-out checks, exceptions, and the score against the answer key
+python3 -m car.profit                    # what each ride really paid after car costs
 python3 -m unittest discover tests       # end-to-end checks (offline; model output is replayed from tests/fixtures)
 ```
 
@@ -70,6 +73,16 @@ Each export is recognized by its columns, not its file name, and turned into one
 `agents/receipts.py` asks Muse Spark to read each photo into JSON, then checks it without the model: the lines must add up to the subtotal, subtotal plus tax must equal the total, and there must be a card charge for exactly that amount within three days. A receipt that fails a check, or looks personal, is flagged for review.
 
 `agents/voice.py` sends each note to Muse Voice Transcribe, then asks Muse Spark for one cash expense: the date ("yesterday" is worked out from the day the note was recorded), amount, payee, business line and Schedule C line. Speech recognition often drops the decimal point in spoken prices ("nine ninety nine" comes back as "999"), so the parser books the plausible reading and records the assumption it made, and asks the driver only when both readings are plausible. Personal spending is left out of the books.
+
+## How the close agent works
+
+`agents/close.py` makes every decision about a number in code, so each finding carries the rows that prove it. It matches Uber and Turo payouts to bank deposits to the penny, matches each Lyft deposit to the Monday-to-Sunday week of rides it pays for (Lyft exports no payouts), matches card payments between accounts, looks for identical charges on one day and for money in that nothing explains, and ties checking to its statement: opening balance plus the month's activity must equal the closing balance. On the demo month it catches all six planted problems; the one extra flag is a meal on a card, which Muse Spark called personal.
+
+What it can't explain becomes a review card, biggest amount first. Each answer has a defined effect on the books (a Lyft shortfall booked as a fee adds $5.00 of fees; a duplicate charge left out stays out), and each tie-out check reads Passes, Answered or Needs you. Where the records can't tell (a Zelle from a person), the card asks instead of suggesting.
+
+`agents/categorize.py` sends each merchant once to Muse Spark, which labels it with a Schedule C line and a treatment: business expense, vehicle cost (counts only under the actual-expense method), personal, transfer, loan payment or owner draw. Totals are always added up in code. The plan is to move this step to Muse Spark Open, the open-weights model, hosted privately.
+
+`car/profit.py` ties each accepted ride offer to the drive to the pickup and the trip itself, by time and distance, since Tessie drives carry no trip ids (all 134 rides link correctly against the answer key). Each ride's true profit is its fare and tip minus electricity, wear on the car and tire wear, with the unpaid pickup miles charged to the ride.
 
 ## Built during the hackathon
 

@@ -1,0 +1,111 @@
+"""Map every kind of spending to a Schedule C line, once per merchant, with Muse Spark.
+
+    python3 -m agents.categorize samples/october
+
+Merchants are grouped first (store numbers and reference codes stripped), so one call covers the month and
+the same merchant is categorized the same way every time. Results go to data/ledger/categories.json; the app
+and the reports read them. The model only labels; totals are always added up in code.
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import re
+import sys
+from collections import OrderedDict
+from decimal import Decimal
+from pathlib import Path
+from typing import Dict, List
+
+from agents.meta import CHAT_MODEL, chat_json
+from ingest.load import load_folder
+from ingest.schema import Transaction
+
+ROOT = Path(__file__).resolve().parents[1]
+LINES = ["1 Gross receipts", "9 Car and truck expenses", "10 Commissions and fees", "15 Insurance (other than health)",
+         "16b Interest, other", "18 Office expense", "22 Supplies", "24b Meals", "25 Utilities", "27a Other expenses"]
+TREATMENTS = ["expense", "vehicle", "personal", "transfer", "loan_payment", "owner_draw"]
+
+PROMPT = """You are the bookkeeper for a one-person LLC that drives for Uber and Lyft in one Tesla and rents Teslas
+on Turo. Below is every kind of money that left its accounts this month, grouped by merchant.
+
+For each merchant, decide how it belongs on the owner's Schedule C (US, sole owner). Use exactly one treatment:
+- "expense": deductible business cost whatever vehicle method is used (e.g. parking, tolls, phone, software, platform fees)
+- "vehicle": a vehicle running cost (charging, car insurance, car washes, repairs). Deductible only under the
+  actual-expense method; under the standard mileage rate it is covered by the rate instead
+- "personal": not a business cost (household groceries, personal meals while driving locally)
+- "transfer": money moving between the owner's own accounts, or paying off a card
+- "loan_payment": a car loan payment (principal is not deductible; only the interest is, from the loan statement)
+- "owner_draw": money moved out to the owner personally
+schedule_c_line must be one of {lines}, or null for personal, transfer, loan_payment and owner_draw.
+
+Return only a JSON array, one object per merchant, in the same order:
+[{{"merchant": exactly as given, "treatment": one of the treatments, "schedule_c_line": string or null,
+  "business_line": "rideshare" | "turo" | "both", "reason": one short sentence}}]
+
+Merchants:
+{merchants}"""
+
+
+def merchant_key(t: Transaction) -> str:
+    payee = (t.counterparty or "").strip()
+    usable = payee and payee.upper() not in ("UNKNOWN", "N/A", "NONE", "CASH")
+    d = (payee if t.kind == "cash" and usable else t.description).upper()
+    d = d.split("·")[0]
+    d = re.sub(r"\*.*$", "", d)                     # "OPENAI *CHATGPT SUBSCR" -> "OPENAI"
+    d = re.sub(r"#\s*\d+|\b\d{3,}\b.*$", "", d)     # store numbers, phone numbers, trailing ids
+    d = re.sub(r"\s+(US|TX|LLC|INC|CO)\b\.?$", "", d.strip())
+    return re.sub(r"\s+", " ", d).strip(" -,") or t.description.upper()
+
+
+def spending(txns: List[Transaction]) -> "OrderedDict[str, Dict]":
+    groups: "OrderedDict[str, Dict]" = OrderedDict()
+    for t in sorted(txns, key=lambda x: x.date):
+        if t.amount >= 0 or t.kind in ("earning", "payout"):
+            continue
+        g = groups.setdefault(merchant_key(t), {"count": 0, "total": Decimal("0"), "example": t.description,
+                                                "account": t.account, "bank_category": t.source_category, "kind": t.kind})
+        g["count"] += 1
+        g["total"] += -t.amount
+    return groups
+
+
+def categorize(txns: List[Transaction], model: str = CHAT_MODEL) -> Dict[str, Dict]:
+    groups = spending(txns)
+    listing = "\n".join(f"- {k} | {g['count']}x, {g['total']:.2f} total | e.g. \"{g['example']}\" | {g['kind']} on {g['account']}"
+                        + (f" | bank says {g['bank_category']}" if g["bank_category"] else "") for k, g in groups.items())
+    out = chat_json([{"role": "user", "content": PROMPT.format(lines=", ".join(f'"{l}"' for l in LINES), merchants=listing)}], model=model)
+    result = {}
+    for row in out if isinstance(out, list) else []:
+        key = str(row.get("merchant", "")).upper().strip()
+        if key in groups and row.get("treatment") in TREATMENTS:
+            line = row.get("schedule_c_line")
+            result[key] = {"treatment": row["treatment"], "schedule_c_line": line if line in LINES else None,
+                           "business_line": row.get("business_line") or "both", "reason": row.get("reason", ""),
+                           "count": groups[key]["count"], "total": str(groups[key]["total"])}
+    return result
+
+
+def main():
+    ap = argparse.ArgumentParser(description="Map spending to Schedule C lines.")
+    ap.add_argument("month", nargs="?", default="samples/october")
+    ap.add_argument("--model", default=CHAT_MODEL)
+    ap.add_argument("--out", default=str(ROOT / "data" / "ledger" / "categories.json"))
+    args = ap.parse_args()
+    txns, _, _ = load_folder(Path(args.month))
+    from app.books import Books  # cash entries from voice notes count too
+    from datetime import date
+    txns = txns + Books(Path(args.month), date(2026, 10, 31), {}).cash_txns()
+    cats = categorize(txns, args.model)
+    missing = [k for k in spending(txns) if k not in cats]
+    for k, c in cats.items():
+        print(f"  {k:<28} {c['treatment']:<13} {c['schedule_c_line'] or '':<34} {c['reason']}")
+    if missing:
+        print(f"\n  not categorized: {missing}")
+    Path(args.out).parent.mkdir(parents=True, exist_ok=True)
+    Path(args.out).write_text(json.dumps(cats, indent=2) + "\n")
+    print(f"\n{len(cats)} merchants categorized with {args.model}. Wrote {args.out}")
+
+
+if __name__ == "__main__":
+    sys.exit(main())

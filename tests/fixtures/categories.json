@@ -1,0 +1,178 @@
+{
+  "OPENAI": {
+    "treatment": "expense",
+    "schedule_c_line": "18 Office expense",
+    "business_line": "both",
+    "reason": "Business software subscription deductible as office expense.",
+    "count": 1,
+    "total": "20.00"
+  },
+  "HISCOX INSURANCE": {
+    "treatment": "expense",
+    "schedule_c_line": "15 Insurance (other than health)",
+    "business_line": "both",
+    "reason": "General business liability insurance separate from auto insurance.",
+    "count": 1,
+    "total": "45.00"
+  },
+  "TESLA FINANCE": {
+    "treatment": "loan_payment",
+    "schedule_c_line": null,
+    "business_line": "both",
+    "reason": "Auto loan payment principal is not deductible, only interest per statement.",
+    "count": 2,
+    "total": "1210.50"
+  },
+  "TESLA SUPERCHARGER": {
+    "treatment": "vehicle",
+    "schedule_c_line": "9 Car and truck expenses",
+    "business_line": "both",
+    "reason": "EV charging is a vehicle operating cost covered by mileage rate.",
+    "count": 12,
+    "total": "189.13"
+  },
+  "PROGRESSIVE INS": {
+    "treatment": "vehicle",
+    "schedule_c_line": "9 Car and truck expenses",
+    "business_line": "both",
+    "reason": "Auto insurance is a vehicle cost covered by mileage rate.",
+    "count": 1,
+    "total": "286.40"
+  },
+  "PARKHOUSTON": {
+    "treatment": "expense",
+    "schedule_c_line": "9 Car and truck expenses",
+    "business_line": "both",
+    "reason": "Business parking is deductible separately from mileage.",
+    "count": 1,
+    "total": "6.00"
+  },
+  "APPLE.COM/BILL": {
+    "treatment": "expense",
+    "schedule_c_line": "18 Office expense",
+    "business_line": "both",
+    "reason": "Small business storage subscription for business use.",
+    "count": 1,
+    "total": "2.99"
+  },
+  "HCTRA EZ TAG REBILL": {
+    "treatment": "expense",
+    "schedule_c_line": "9 Car and truck expenses",
+    "business_line": "both",
+    "reason": "Business tolls are deductible separately from mileage.",
+    "count": 1,
+    "total": "40.00"
+  },
+  "BAYOU SHINE CAR WASH": {
+    "treatment": "vehicle",
+    "schedule_c_line": "9 Car and truck expenses",
+    "business_line": "both",
+    "reason": "Car washes are vehicle costs covered by mileage rate.",
+    "count": 2,
+    "total": "63.47"
+  },
+  "UBER INSTANT PAY FEE": {
+    "treatment": "expense",
+    "schedule_c_line": "10 Commissions and fees",
+    "business_line": "rideshare",
+    "reason": "Platform payout fee is a deductible commission.",
+    "count": 2,
+    "total": "3.50"
+  },
+  "LONE STAR BURGER": {
+    "treatment": "personal",
+    "schedule_c_line": null,
+    "business_line": "rideshare",
+    "reason": "Personal local meal is not deductible.",
+    "count": 1,
+    "total": "14.32"
+  },
+  "DETAILPRO SUPPLY": {
+    "treatment": "expense",
+    "schedule_c_line": "22 Supplies",
+    "business_line": "both",
+    "reason": "Detailing supplies for business cars are deductible supplies.",
+    "count": 1,
+    "total": "38.62"
+  },
+  "T-MOBILE": {
+    "treatment": "expense",
+    "schedule_c_line": "25 Utilities",
+    "business_line": "both",
+    "reason": "Business phone service is deductible as utilities.",
+    "count": 1,
+    "total": "85.00"
+  },
+  "HOBBY AIRPORT PARKING": {
+    "treatment": "expense",
+    "schedule_c_line": "9 Car and truck expenses",
+    "business_line": "rideshare",
+    "reason": "Parking while waiting for rider is deductible business parking.",
+    "count": 1,
+    "total": "12.00"
+  },
+  "ONLINE TRANSFER TO CHK ...": {
+    "treatment": "transfer",
+    "schedule_c_line": null,
+    "business_line": "both",
+    "reason": "Movement between own accounts is not an expense.",
+    "count": 2,
+    "total": "2700.00"
+  },
+  "BAYOU FRESH MARKET": {
+    "treatment": "personal",
+    "schedule_c_line": null,
+    "business_line": "both",
+    "reason": "Household groceries are not a business cost.",
+    "count": 1,
+    "total": "126.43"
+  },
+  "CHASE CREDIT CRD": {
+    "treatment": "transfer",
+    "schedule_c_line": null,
+    "business_line": "both",
+    "reason": "Credit card payment is a transfer not an expense.",
+    "count": 1,
+    "total": "412.66"
+  },
+  "GOOGLE": {
+    "treatment": "expense",
+    "schedule_c_line": "18 Office expense",
+    "business_line": "both",
+    "reason": "Business Workspace subscription is deductible office expense.",
+    "count": 1,
+    "total": "7.20"
+  },
+  "CASE OF WATER FOR RIDERS": {
+    "treatment": "expense",
+    "schedule_c_line": "22 Supplies",
+    "business_line": "rideshare",
+    "reason": "Rider amenities are deductible supplies.",
+    "count": 1,
+    "total": "9.99"
+  },
+  "AMEX EPAYMENT": {
+    "treatment": "transfer",
+    "schedule_c_line": null,
+    "business_line": "both",
+    "reason": "Credit card payment is a transfer not an expense.",
+    "count": 1,
+    "total": "318.90"
+  },
+  "CAR WASH GUYS": {
+    "treatment": "vehicle",
+    "schedule_c_line": "9 Car and truck expenses",
+    "business_line": "turo",
+    "reason": "Turo car wash tip is a vehicle cost covered by mileage rate.",
+    "count": 1,
+    "total": "5.00"
+  },
+  "MONTHLY SERVICE FEE": {
+    "treatment": "expense",
+    "schedule_c_line": "27a Other expenses",
+    "business_line": "both",
+    "reason": "Bank service fee is deductible as other expense.",
+    "count": 1,
+    "total": "15.00"
+  }
+}

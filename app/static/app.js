@@ -61,6 +61,16 @@ function miniCloud(fill = '#BFE0FF') {
       svgEl('circle', { cx: 176, cy: 84, r: 42 }), svgEl('circle', { cx: 44, cy: 112, r: 30 }),
       svgEl('circle', { cx: 204, cy: 112, r: 28 }), svgEl('rect', { x: 40, y: 96, width: 168, height: 46, rx: 23 })));
 }
+const TONE_FILL = { blush: '#FFC6E2', bubblegum: '#FF8CC6', sky: '#BFE0FF', white: '#FFFFFF', mist: '#DCEBFF' };
+function cloudShape(tone) {
+  const fill = TONE_FILL[tone] || '#FFFFFF';
+  return svgEl('svg', { class: 'cloudbg', viewBox: '0 0 240 160', 'aria-hidden': 'true', preserveAspectRatio: 'none' },
+    svgEl('g', { fill },
+      svgEl('circle', { cx: 78, cy: 88, r: 44 }), svgEl('circle', { cx: 126, cy: 62, r: 54 }),
+      svgEl('circle', { cx: 176, cy: 84, r: 42 }), svgEl('circle', { cx: 44, cy: 112, r: 30 }),
+      svgEl('circle', { cx: 204, cy: 112, r: 28 }), svgEl('rect', { x: 40, y: 96, width: 168, height: 46, rx: 23 })),
+    svgEl('ellipse', { cx: 104, cy: 34, rx: 22, ry: 9, fill: '#FFFFFF', opacity: 0.75 }));
+}
 function tireIcon() {
   return svgEl('svg', { viewBox: '0 0 22 22', 'aria-hidden': 'true' },
     svgEl('circle', { cx: 11, cy: 11, r: 8.5, fill: 'none', stroke: '#2D2A5A', 'stroke-width': 1.8 }),
@@ -94,7 +104,7 @@ function renderHome(h) {
     existing.delete(b.id);
     node.classList.remove(...TONES);
     node.classList.add(`tone-${b.tone}`);
-    const kids = [];
+    const kids = [cloudShape(b.tone)];
     if (b.icon === 'tire') kids.push(tireIcon());
     if (b.value) kids.push(el('span', { class: 'v', text: b.value }));
     kids.push(el('span', { class: 'l', text: b.label }));
@@ -214,7 +224,8 @@ function reviewNodes() {
 
   const explainBox = el('div', { class: 'explain', hidden: true });
   const choicesBox = el('div', { class: 'choices', hidden: true });
-  for (const c of it.choices.filter((c) => c.choice !== it.suggestion.choice)) {
+  const suggested = it.suggestion ? it.suggestion.choice : null;
+  for (const c of it.choices.filter((c) => c.choice !== suggested)) {
     if (c.choice === 'amount') {
       const input = el('input', { type: 'text', inputmode: 'decimal', placeholder: 'Amount, like 9.99', 'aria-label': 'New amount' });
       choicesBox.append(el('div', { class: 'choice-row' }, input,
@@ -237,8 +248,9 @@ function reviewNodes() {
     el('span', { class: 'pill', text: it.tag }), title(it.title), el('p', { text: it.body }),
     ...evidence, it.rows.length ? rows(it.rows) : null,
     el('div', { class: 'suggestion' }, miniCloud(),
-      el('span', {}, el('b', { text: it.suggestion.label }), el('span', { class: 'muted', text: it.found_by }))),
-    explainBox, choicesBox);
+      el('span', {}, el('b', { text: it.suggestion ? it.suggestion.label : 'The records can’t tell. Which was it?' }),
+        el('span', { class: 'muted', text: it.found_by }))),
+    explainBox, it.suggestion ? choicesBox : null);
 
   const explainBtn = el('button', { type: 'button', class: 'btn', text: 'Explain' });
   explainBtn.addEventListener('click', async () => {
@@ -252,11 +264,16 @@ function reviewNodes() {
     explainBtn.disabled = false;
     explainBtn.textContent = 'Explain';
   });
-  const actions = el('div', { class: 'actions' },
-    el('button', { type: 'button', class: 'btn primary', text: 'Approve', onclick: () => decide(it, it.suggestion.choice) }),
-    el('div', { class: 'two' },
-      el('button', { type: 'button', class: 'btn', text: 'Change', onclick: () => { choicesBox.hidden = !choicesBox.hidden; } }),
-      explainBtn));
+  const actions = it.suggestion
+    ? el('div', { class: 'actions' },
+      el('button', { type: 'button', class: 'btn primary', text: 'Approve', onclick: () => decide(it, it.suggestion.choice) }),
+      el('div', { class: 'two' },
+        el('button', { type: 'button', class: 'btn', text: 'Change', onclick: () => { choicesBox.hidden = !choicesBox.hidden; } }),
+        explainBtn))
+    : el('div', { class: 'actions' },
+      el('div', { class: 'two' }, it.choices.map((c) =>
+        el('button', { type: 'button', class: 'btn tall', text: c.label, onclick: () => decide(it, c.choice) }))),
+      explainBtn);
   return [progress, card, actions];
 }
 
@@ -272,7 +289,7 @@ async function decide(it, choice, amount) {
     review.items = r.items;
     renderHome(r.home);
     const picked = it.choices.find((c) => c.choice === choice);
-    if (choice === it.suggestion.choice) toast('Approved');
+    if (it.suggestion && choice === it.suggestion.choice) toast('Approved');
     else if (choice === 'amount') toast(`Saved $${body.amount.toFixed(2)}`);
     else toast(`Saved: ${picked ? picked.label : 'changed'}`);
     openSheet(reviewNodes());

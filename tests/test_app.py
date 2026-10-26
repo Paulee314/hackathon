@@ -44,8 +44,14 @@ class Totals(unittest.TestCase):
 
     def test_items_waiting_on_review_are_not_counted_yet(self):
         held = {h for i in self.b.pending() for h in i["holds"]}
-        self.assertEqual(len(held), 2)  # the burger and the groceries
-        self.assertEqual(self.t["in_review"], Decimal("140.75"))
+        # the burger, the groceries, the duplicate charge's copy, the Turo deposit and the Zelle
+        self.assertEqual(len(held), 5)
+        self.assertEqual(self.t["in_review"], Decimal("14.32") + Decimal("126.43") + Decimal("17.36") + Decimal("64.20") + Decimal("150.00"))
+
+    def test_schedule_c_lines_add_up_to_what_was_spent(self):
+        sc = self.b.schedule_c()
+        self.assertEqual(sc["total_expenses"], self.t["spent"])
+        self.assertEqual(sc["gross_receipts"], self.t["earned"])
 
     def test_loans_transfers_and_unexplained_money_stay_out_of_profit(self):
         self.assertEqual(classify(txn("TESLA FINANCE LLC · AUTO PMT", "-612.40"))[0], "loan")
@@ -57,9 +63,33 @@ class Totals(unittest.TestCase):
 
 
 class Review(unittest.TestCase):
-    def test_queue(self):
-        ids = [i["id"] for i in books().review_items()]
-        self.assertEqual(ids, ["receipt:2026-10-11_lone-star-burger", "receipt:2026-10-18_bayou-fresh", "voice:2026-10-21_water"])
+    def test_queue_puts_the_most_money_first(self):
+        items = books().review_items()
+        self.assertEqual(len(items), 8)
+        self.assertEqual(items[0]["type"], "payout_missing_deposit")
+        amounts = [Decimal(i["amount"]) for i in items]
+        self.assertEqual(amounts, sorted(amounts, reverse=True))
+        self.assertEqual(sum(amounts), Decimal("714.89"))
+
+    def test_agent_answers_change_the_books(self):
+        items = {i.get("type") or i["id"]: i for i in books().review_items()}
+        base = books().totals()
+        def with_choice(kind, choice):
+            return books({"decisions": {items[kind]["id"]: {"choice": choice}}}).totals()
+        self.assertEqual(with_choice("deposit_short", "fee")["spent"] - base["spent"], Decimal("5.00"))
+        self.assertEqual(with_choice("possible_duplicate", "both")["spent"] - base["spent"], Decimal("17.36"))
+        self.assertEqual(with_choice("possible_duplicate", "duplicate")["spent"], base["spent"])
+        self.assertEqual(with_choice("deposit_without_payout", "income")["earned"] - base["earned"], Decimal("64.20"))
+        self.assertEqual(with_choice("unidentified_income", "business")["earned"] - base["earned"], Decimal("150.00"))
+        self.assertEqual(with_choice("unidentified_income", "personal")["earned"], base["earned"])
+
+    def test_checks_turn_answered(self):
+        b = books()
+        needs = [c for c in b.checks() if c["status"] == "needs you"]
+        self.assertEqual(len(needs), 5)
+        decisions = {i["id"]: {"choice": (i["suggestion"] or i["choices"][0])["choice"]} for i in b.review_items()}
+        statuses = {c["status"] for c in books({"decisions": decisions}).checks()}
+        self.assertEqual(statuses, {"passes", "answered"})
 
     def test_personal_keeps_the_charge_out_and_business_counts_it(self):
         key = "receipt:2026-10-18_bayou-fresh"
@@ -77,7 +107,7 @@ class Review(unittest.TestCase):
         self.assertEqual(changed - base, Decimal("0.50"))
 
     def test_closing_the_month(self):
-        decisions = {i["id"]: {"choice": i["suggestion"]["choice"]} for i in books().review_items()}
+        decisions = {i["id"]: {"choice": (i["suggestion"] or i["choices"][0])["choice"]} for i in books().review_items()}
         home = books({"decisions": decisions}).home()
         self.assertEqual(home["review"]["count"], 0)
         self.assertEqual(home["headline"], "October is closed.")
@@ -87,7 +117,8 @@ class Screens(unittest.TestCase):
     def test_home_bubbles(self):
         home = books().home()
         self.assertEqual([b["id"] for b in home["bubbles"]], ["profit", "review", "turo", "rides", "tire"])
-        self.assertEqual(home["review"]["count"], 3)
+        self.assertEqual(home["review"]["count"], 8)
+        self.assertTrue(home["bubbles"][3]["value"].endswith("/hr"))
 
     def test_cash_logged_in_the_app_counts(self):
         entry = {"id": "e1", "parsed": {"date": "2026-10-31", "amount": 22.0, "payee": "Car wash", "description": "Car wash",
