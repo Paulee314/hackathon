@@ -1,0 +1,3 @@
+# Only the phone app needs these; ingestion, agents and tests use the standard library.
+fastapi>=0.110
+uvicorn>=0.29

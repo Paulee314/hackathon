@@ -27,6 +27,17 @@ python3 -m unittest discover tests       # end-to-end checks (offline; model out
 
 Every Meta API call is logged to `data/usage.jsonl` with its token or audio usage, so spend is visible.
 
+## Phone app
+
+```bash
+python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
+.venv/bin/uvicorn app.server:app --port 8765     # then open http://localhost:8765
+```
+
+A cloud sits in the middle of the screen with bubbles around it: profit, items to review, Turo, rides and the tire. Hold the cloud and talk to log cash you spent or ask about your month; tap a bubble to open it. The browser records 16 kHz WAV, Muse Voice Transcribe turns it into words, and Muse Spark either books a cash entry or answers from the books. Every number on screen is computed in code (`app/books.py`); the model may only use those numbers when it answers. The review bubble opens one card at a time with the evidence (the receipt photo or the voice note), Muse Spark's suggestion, and Approve, Change or Explain.
+
+The microphone needs `localhost` or https. The app pretends today is Oct 31, 2026 (`APP_TODAY`), so the synthetic month reads as almost closed. Settings has a reset that clears your answers and entries.
+
 `.env` and `data/` are git-ignored. Real financial data never goes in this repo; the demo uses synthetic data only.
 
 ## Demo data

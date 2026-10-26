@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#D9ECFF">
+<title>October close</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wdth,wght@75..125,300..700&family=Figtree:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+<main class="app" id="app">
+  <header class="top">
+    <span class="month" id="month">October</span>
+    <button type="button" class="icon-btn" id="settingsBtn" aria-label="Settings">
+      <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><circle cx="9" cy="9" r="2.5" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M9 1.8v2M9 14.2v2M1.8 9h2M14.2 9h2M3.9 3.9l1.4 1.4M12.7 12.7l1.4 1.4M3.9 14.1l1.4-1.4M12.7 5.3l1.4-1.4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+    </button>
+  </header>
+
+  <section class="greet" aria-live="polite">
+    <h1 id="headline">Opening your books</h1>
+    <p id="sub"></p>
+  </section>
+
+  <div class="stage" id="stage">
+    <svg class="orbit" viewBox="0 0 390 560" aria-hidden="true">
+      <circle cx="195" cy="280" r="178" fill="none" stroke="#B9D5F5" stroke-width="1.5" stroke-dasharray="2 9" stroke-linecap="round"/>
+      <circle cx="18" cy="22" r="7" fill="none" stroke="#FF8CC6" stroke-width="2"/>
+      <circle cx="364" cy="282" r="6" fill="#FF8CC6" opacity="0.55"/>
+      <circle cx="16" cy="270" r="9" fill="none" stroke="#8EC5FF" stroke-width="2"/>
+      <circle cx="372" cy="30" r="9" fill="#FFFFFF" opacity="0.85"/>
+    </svg>
+    <div class="glow" aria-hidden="true"></div>
+    <div class="ripples" aria-hidden="true"><span></span><span></span><span></span></div>
+    <button type="button" class="cloud" id="cloud" aria-label="Hold to talk. Press Enter to start and stop.">
+      <svg class="cloud-shape" viewBox="0 0 240 160" aria-hidden="true">
+        <defs>
+          <linearGradient id="cloudFill" x1="0" y1="10" x2="0" y2="148" gradientUnits="userSpaceOnUse">
+            <stop offset="0" stop-color="#FFFFFF"/><stop offset="0.6" stop-color="#FFF5FA"/><stop offset="1" stop-color="#FFD9EC"/>
+          </linearGradient>
+          <filter id="cloudShadow" x="-30%" y="-30%" width="160%" height="170%">
+            <feDropShadow dx="0" dy="12" stdDeviation="13" flood-color="#6E9BE0" flood-opacity="0.32"/>
+          </filter>
+        </defs>
+        <g filter="url(#cloudShadow)" fill="url(#cloudFill)">
+          <circle cx="78" cy="88" r="44"/><circle cx="126" cy="62" r="54"/><circle cx="176" cy="84" r="42"/>
+          <circle cx="44" cy="112" r="30"/><circle cx="204" cy="112" r="28"/><rect x="40" y="96" width="168" height="46" rx="23"/>
+        </g>
+        <ellipse cx="108" cy="36" rx="20" ry="9" fill="#FFFFFF" opacity="0.9"/>
+        <g class="bars" fill="#FF6FAE">
+          <rect x="94" y="96" width="8" height="18" rx="4"/><rect x="108" y="96" width="8" height="18" rx="4"/>
+          <rect x="122" y="96" width="8" height="18" rx="4"/><rect x="136" y="96" width="8" height="18" rx="4"/>
+          <rect x="150" y="96" width="8" height="18" rx="4"/>
+        </g>
+      </svg>
+    </button>
+    <p class="cloud-hint" id="cloudHint">Hold the cloud to talk</p>
+    <div class="said" id="said" hidden>
+      <p class="said-text" id="saidText"></p>
+      <span class="said-label" id="saidLabel"></span>
+    </div>
+    <div id="bubbles"></div>
+  </div>
+
+  <div class="dock">
+    <button type="button" class="suggest" id="suggest">Try saying “How did this week go?”</button>
+    <button type="button" class="icon-btn" id="typeBtn" aria-label="Type instead">
+      <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true"><rect x="2" y="5" width="16" height="10" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M5 8.5h1M8 8.5h1M11 8.5h1M14 8.5h1M6 11.5h8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+    </button>
+  </div>
+  <form class="typebar" id="typebar" hidden>
+    <label for="typeInput" class="sr-only">Ask or log something</label>
+    <input id="typeInput" type="text" autocomplete="off" placeholder="Ask, or log cash you spent" maxlength="500">
+    <button type="submit" class="send" aria-label="Send">
+      <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true"><path d="M4 10h11M10.5 5l5 5-5 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+  </form>
+</main>
+
+<div class="scrim" id="scrim" hidden></div>
+<section class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle" hidden>
+  <button type="button" class="icon-btn sheet-close" id="sheetClose" aria-label="Close">
+    <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 3.5l9 9M12.5 3.5l-9 9" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+  </button>
+  <div class="sheet-body" id="sheetBody"></div>
+</section>
+<div class="viewer" id="viewer" hidden><img id="viewerImg" alt=""><button type="button" class="icon-btn viewer-close" id="viewerClose" aria-label="Close the receipt">
+  <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 3.5l9 9M12.5 3.5l-9 9" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button></div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script src="/static/app.js"></script>
+</body>
+</html>

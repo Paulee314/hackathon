@@ -74,23 +74,29 @@ def find_charge(r: Dict, txns) -> Optional[Dict]:
             "amount": str(t.amount), "merchant_words_in_common": best[0][0], "days_apart": -best[0][1]}
 
 
+def assess(extracted: Dict, txns) -> Dict:
+    """Checks done in code on what the model read: arithmetic, the matching charge, and flags."""
+    checks = check_arithmetic(extracted)
+    match = find_charge(extracted, txns)
+    flags = []
+    if not checks["items_match_subtotal"] or not checks["subtotal_plus_tax_matches_total"]:
+        flags.append("receipt arithmetic does not add up")
+    if match is None:
+        flags.append("no card charge with this amount within 3 days")
+    if extracted.get("kind") in ("personal", "mixed"):
+        flags.append(f"looks {extracted['kind']}: {extracted.get('reason', '')}")
+    return {"checks": checks, "match": match, "flags": flags}
+
+
 def read_receipts(month: Path) -> List[Dict]:
     txns, _, _ = load_folder(month)
     images = sorted(p for p in month.rglob("*") if p.suffix.lower() in IMAGE_TYPES and "receipt" in str(p.parent).lower())
     results = []
     for img in images:
         extracted = chat_json([{"role": "user", "content": [{"type": "text", "text": PROMPT}, image_part(img)]}])
-        checks = check_arithmetic(extracted)
-        match = find_charge(extracted, txns)
-        flags = []
-        if not checks["items_match_subtotal"] or not checks["subtotal_plus_tax_matches_total"]:
-            flags.append("receipt arithmetic does not add up")
-        if match is None:
-            flags.append("no card charge with this amount within 3 days")
-        if extracted.get("kind") in ("personal", "mixed"):
-            flags.append(f"looks {extracted['kind']}: {extracted.get('reason', '')}")
-        results.append({"file": str(img.relative_to(month)), "extracted": extracted, "checks": checks,
-                        "match": match, "flags": flags})
+        a = assess(extracted, txns)
+        checks, match = a["checks"], a["match"]
+        results.append({"file": str(img.relative_to(month)), "extracted": extracted, **a})
         print(f"  {img.name:<34} total {extracted.get('total')!s:>8}  "
               f"{'matched ' + match['date'] if match else 'NO MATCH':<20} {extracted.get('kind', '')}")
     return results
