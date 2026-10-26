@@ -176,10 +176,17 @@ async function openDetail(id) {
     nodes.push(sparkline(d.series, d.placard));
     nodes.push(el('p', { class: 'muted', text: 'Pink is this tire, blue is the other three, dotted is the door sticker.' }));
   }
-  for (const sec of d.sections || []) {
+  (d.sections || []).forEach((sec, i) => {
     nodes.push(el('div', { class: 'section-title' }, el('span', { text: sec.title }), el('span', { text: sec.total || '' })));
     nodes.push(rows(sec.rows));
-  }
+    if (i === 1 && d.rules && d.rules.length) {
+      nodes.push(el('div', { class: 'section-title' }, el('span', { text: 'Ride rules, replayed on this month' }), el('span', { text: 'vs what you did' })));
+      nodes.push(el('div', { class: 'rule-list' }, d.rules.map((r) =>
+        el('button', { type: 'button', class: 'rule-row', onclick: () => { closeSheet(); setTimeout(() => ask(`What if I used this rule: ${r.label}?`, false), 240); } },
+          el('span', { text: r.label }), el('b', { class: r.value.startsWith('+') ? 'up' : 'down', text: r.value })))));
+      nodes.push(el('p', { class: 'muted', text: 'Tap a rule to see what it would have done, or say your own: “What if I skip pickups over 4 miles?”' }));
+    }
+  });
   if (d.note) nodes.push(el('p', { class: 'muted', text: d.note }));
   if (ASK_ABOUT[id]) {
     nodes.push(el('div', { class: 'actions' }, el('button', {
@@ -371,6 +378,11 @@ function showResult(heard, res, spoken) {
   } else if (res.type === 'question') {
     nodes.push(title(res.text), el('p', { text: 'Hold the cloud and answer, or type it.' }),
       el('div', { class: 'actions' }, el('button', { type: 'button', class: 'btn primary', text: 'Type the answer', onclick: () => { closeSheet(); openTypebar(); } })));
+  } else if (res.type === 'rule') {
+    nodes.push(el('span', { class: 'pill', text: res.verdict }), title(res.headline),
+      el('div', { class: 'big', text: res.amount }), el('p', { text: res.text }), rows(res.rows),
+      el('p', { class: 'muted', text: res.note }),
+      el('span', { class: 'muted', text: 'Rule understood by Muse Spark, replayed in code on every offer this month' }));
   } else if (res.type === 'noted') {
     nodes.push(title(res.headline, 'big'), el('p', { text: res.text }));
   } else {

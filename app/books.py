@@ -20,6 +20,7 @@ from agents import close as close_agent
 from agents.categorize import merchant_key
 from agents.receipts import assess
 from agents.voice import to_transaction
+from car import rules as ride_rules
 from car.profit import ride_profits, summary as ride_summary
 from car.telemetry import load_drives, load_offers, load_profile, load_tires
 from ingest.load import load_folder
@@ -142,6 +143,7 @@ class Books:
         self.categories = json.loads(path.read_text()) if path else {}
         self._rides = None
         self._items = None
+        self._offers = None
 
     # ---- inputs -------------------------------------------------------------------------
     def _receipts(self) -> List[Dict]:
@@ -402,6 +404,56 @@ class Books:
             self._rides = {"rides": rides, "summary": ride_summary(rides, self.profile)}
         return self._rides
 
+    def _offer_cache(self):
+        if self._offers is None:
+            self._offers = ride_rules.offer_estimates(self.month_dir, self.txns)
+        return self._offers
+
+    def hours_on_road(self) -> float:
+        offers, est, _ = self._offer_cache()
+        return ride_rules.online_hours(offers, est)
+
+    def rule_result(self, rule: Dict) -> Dict:
+        """Replay one rule and say what it would have done, in plain words. All numbers from code."""
+        r = ride_rules.rule_from_dict(rule)
+        c = ride_rules.compare(r, self.month_dir, cache=self._offer_cache())
+        avg = self.ride_profit()["summary"]["all"]["per_hour"] or 0
+        diff = Decimal(str(c["difference"]))
+        n, k = c["rides_you_took_it_skips"], c["offers_you_passed_it_takes"]
+        said = []
+        if n:
+            ph = c["skipped_rides_per_hour"] or 0
+            versus = ("about your average" if abs(ph - avg) < 3 else
+                      f"less than your average of {money(avg)}" if ph < avg else f"more than your average of {money(avg)}")
+            said.append(f"It skips {n} ride{'s' if n != 1 else ''} you drove. They paid {money(ph)} an hour after car costs, {versus}.")
+        else:
+            said.append("It keeps every ride you drove.")
+        if k:
+            said.append(f"In the time it frees, {k} offer{'s' if k != 1 else ''} you passed on would have fit, "
+                        f"worth about {money(c['profit_of_offers_it_takes'])}.")
+        if diff:
+            said.append(f"{self.first_day.strftime('%B')} would have paid {money(abs(diff))} {'more' if diff > 0 else 'less'} after car costs.")
+        else:
+            said.append("It wouldn't have changed what you made.")
+        a, w = c["as_driven"], c["with_rule"]
+        return {"type": "rule", "headline": c["describe"], "amount": ("+" if diff > 0 else "") + money(diff),
+                "verdict": "Worth trying" if diff > 0 else "Not worth it" if diff < 0 else "No change",
+                "text": " ".join(said),
+                "rows": [["As you drove", money(a["true_profit"])], ["With the rule", money(w["true_profit"])],
+                         ["Per hour on the road", f"{money(a['per_online_hour'])} → {money(w['per_online_hour'])}"],
+                         ["Unpaid pickup miles", f"{a['pickup_miles']:,} → {w['pickup_miles']:,}"]],
+                "note": "Offers you passed on are estimated from their offer cards. Advice only: the app never accepts "
+                        "or declines a ride for you.",
+                "rule": c["rule"]}
+
+    def rule_presets(self) -> List[Dict]:
+        out = []
+        for r in ride_rules.PRESETS[1:]:
+            c = ride_rules.compare(r, self.month_dir, cache=self._offer_cache())
+            out.append({"rule": r.name, "difference": c["difference"], "per_online_hour": c["with_rule"]["per_online_hour"],
+                        "rides_it_skips": c["rides_you_took_it_skips"], "offers_it_adds": c["offers_you_passed_it_takes"]})
+        return out
+
     def schedule_c(self) -> Optional[Dict]:
         """Spending rolled up by Schedule C line, from Muse Spark's labels, actual-expense method."""
         if not self.categories:
@@ -502,7 +554,7 @@ class Books:
             {"id": "review", "value": str(n), "label": "to review" if n else "all reviewed",
              "tone": "bubblegum" if n else "sky", "size": "l", "note": money(pending_total) if n else ""},
             {"id": "turo", "value": money0(turo["total"]), "label": f"Turo, {turo['trips']} trips", "tone": "sky", "size": "m"},
-            {"id": "rides", "value": money0(self.ride_profit()["summary"]["all"]["per_hour"]) + "/hr",
+            {"id": "rides", "value": money0(self.ride_profit()["summary"]["all"]["true_profit"] / self.hours_on_road()) + "/hr",
              "label": "after car costs", "tone": "white", "size": "m"},
         ]
         if tire and tire.get("low"):
@@ -557,8 +609,12 @@ class Books:
             s = self.ride_profit()["summary"]
             a, cp = s["all"], s["cost_parts"]
             far, near = s["pickup_over_3_miles"], s["pickup_3_miles_or_less"]
-            return {"id": "rides", "title": "What your rides really paid", "value": f"{money(a['per_hour'])} an hour",
-                    "sub": f"After car costs, across {a['rides']} rides ({r['uber_rides']} Uber, {r['lyft_rides']} Lyft) and {a['hours']} hours",
+            road = self.hours_on_road()
+            presets = self.rule_presets()
+            return {"id": "rides", "title": "What your rides really paid", "value": f"{money(a['true_profit'] / road)} an hour",
+                    "sub": f"After car costs, over {road:.1f} hours on the road ({a['hours']} with a rider), "
+                           f"{a['rides']} rides: {r['uber_rides']} Uber, {r['lyft_rides']} Lyft",
+                    "rules": [{"label": p["rule"], "value": ("+" if p["difference"] > 0 else "") + money(p["difference"])} for p in presets],
                     "sections": [
                         {"title": "After car costs", "total": money(a["true_profit"]), "rows": [
                             ["Fares and tips", money(a["fare"])], ["Electricity", money(-cp["energy"])],
@@ -572,7 +628,8 @@ class Books:
                         {"title": "Driving", "total": "", "rows": [["Miles driven", f"{r['miles_driven']:,}"],
                                                                    ["Miles to pickups, unpaid", f"{r['pickup_miles']:,}"],
                                                                    ["Pickups over 3 miles", str(r["pickups_over_3_miles"])],
-                                                                   ["Hours on rides", str(r["hours_on_rides"])]]},
+                                                                   ["Hours on the road", f"{road:.1f}"],
+                                                                   ["Hours with a rider or heading to one", f"{a['hours']:.1f}"]]},
                         {"title": "Fares per hour, by time of day", "total": "",
                          "rows": [[k, money(v["per_hour"])] for k, v in r["by_time_of_day"].items()]},
                     ]}
@@ -620,6 +677,8 @@ class Books:
             "turo": {"trips": tu["trips"], "earned": m(tu["total"]), "adjustments": m(tu["adjustments"])},
             "rides": rides,
             "true_profit_per_ride": self._ride_context(),
+            "hours_on_the_road": round(self.hours_on_road(), 1),
+            "ride_rules_replayed_on_this_month": self.rule_presets(),
             "checks": [{"check": c["title"], "status": c["status"], "detail": c["detail"]} for c in self.checks()],
             "schedule_c_actual_expense_method": None if not self.schedule_c() else {
                 k: (m(v) if isinstance(v, Decimal) else ({kk: m(vv) for kk, vv in v.items()} if isinstance(v, dict) else v))

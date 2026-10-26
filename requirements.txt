@@ -1,3 +1,4 @@
-# Only the phone app needs these; ingestion, agents and tests use the standard library.
+# Only the phone app and the demo sheet need these; ingestion, agents and tests use the standard library.
 fastapi>=0.110
 uvicorn>=0.29
+openpyxl>=3.1

@@ -17,7 +17,9 @@ from app.books import Books, money, short_date
 PROMPT = """You are the money copilot inside a phone app for a gig driver. The driver {how} this to you:
 "{text}"
 
-Today is {today} ({weekday}). The driver either asked about their books, or told you about cash they spent.
+Today is {today} ({weekday}). The driver either asked about their books, told you about cash they spent, or
+asked what would have happened with a rule for which ride offers to take or skip ("what if I skip pickups over
+3 miles?", "only take rides paying a dollar a mile").
 
 BOOKS, the only numbers you may use (never invent others):
 {books}
@@ -27,7 +29,11 @@ driver is logging spending and a number without a decimal point would be an impl
 read it as dollars and cents and say so in "assumption".
 
 Return only JSON, no prose:
-{{"intent": "log" | "question" | "other",
+{{"intent": "log" | "question" | "rule" | "other",
+ "rule": null, or for "rule": {{"name": the rule in a few of the driver's words,
+    "max_pickup_miles": number or null, "min_fare": number or null, "min_fare_per_mile": number or null,
+    "min_profit_per_hour": number or null (only if they mean after car costs), "platforms": ["uber" and/or "lyft"] or null,
+    "hours": [first hour, last hour] in 24-hour time or null}},
  "expense": null, or for "log": {{"date": "YYYY-MM-DD" (resolve words like "yesterday" against today),
     "amount": number, "payee": string, "description": short string,
     "business_line": "rideshare" | "turo" | "personal" | "unclear",
@@ -58,6 +64,8 @@ def handle(text: str, books: Books, spoken: bool) -> Dict:
     intent = out.get("intent")
     if intent == "log" and out.get("expense"):
         return _logged(out["expense"], text, spoken, today)
+    if intent == "rule" and isinstance(out.get("rule"), dict):
+        return books.rule_result(out["rule"])  # the replay and every number in the answer come from code
     answer = out.get("answer") or {"headline": "", "text": "I couldn't work that out. Try asking another way.", "followups": []}
     return {"type": "answer", "headline": answer.get("headline", ""), "text": answer.get("text", ""),
             "followups": [f for f in answer.get("followups", []) if isinstance(f, str)][:2]}

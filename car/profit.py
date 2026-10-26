@@ -92,7 +92,7 @@ def ride_profits(month_dir: Path, txns=None) -> List[Dict]:
         hours = minutes / 60 if minutes > 0 else None
         rides.append({
             "offer": o.id, "trip": o.trip_id, "platform": o.platform, "at": o.at.isoformat(sep=" "),
-            "cancelled": trip is None,
+            "cancelled": trip is None, "start": pickup.start.isoformat(sep=" "), "end": legs[-1].end.isoformat(sep=" "),
             "fare": round(fare, 2), "pickup_miles": round(pickup.miles, 2), "trip_miles": round(trip.miles, 2) if trip else 0.0,
             "miles": round(miles, 2), "kwh": round(kwh, 2), "minutes": round(minutes, 1),
             "energy": round(energy, 2), "depreciation": round(depreciation, 2), "tires": round(tires, 2),
