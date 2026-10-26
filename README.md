@@ -16,11 +16,33 @@ An agentic month-end close for gig-economy operators: rideshare drivers, Turo ho
 ## Setup
 
 ```bash
-cp .env.example .env        # then add your Meta Model API key to .env
-python3 test_api.py         # smoke test: text, image generation, receipt reading
+cp .env.example .env                     # then add your Meta Model API key to .env
+python3 test_api.py                      # smoke test: text, image generation, receipt reading
+python3 synth/generate_october.py        # writes the synthetic month to samples/october
+python3 -m ingest.load samples/october   # normalizes every export into data/ledger/transactions.csv
+python3 -m unittest discover tests       # end-to-end checks
 ```
 
 `.env` and `data/` are git-ignored. Real financial data never goes in this repo; the demo uses synthetic data only.
+
+## Demo data
+
+`samples/october/` is one synthetic month for a fictional operator, Bayou City Mobility LLC: Uber and Lyft driving plus two Teslas on Turo, a checking account and two cards. Files match the column layouts of real Uber, Lyft, Turo, Chase and Amex exports.
+
+Every payout reaches the bank except six planted problems. `expected_exceptions.json` is the answer key used to score the close agent:
+
+| ID | Planted problem |
+| --- | --- |
+| E1 | Uber payout with no bank deposit |
+| E2 | Lyft deposit $5.00 short of the week's rides |
+| E3 | Two identical Supercharger charges on one day |
+| E4 | Groceries on the business card |
+| E5 | Turo deposit with no payout in the Turo export |
+| E6 | Zelle from a person, no platform record |
+
+## How ingestion works
+
+Each export is recognized by its columns, not its file name, and turned into one record shape (`ingest/schema.py`). Amounts are signed from the account's point of view, and platform balances act as clearing accounts, so a payout is a minus in `uber_balance` and a plus in checking. Overlapping exports are loaded once.
 
 ## Built during the hackathon
 

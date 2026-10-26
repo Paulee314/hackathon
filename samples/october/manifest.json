@@ -1,0 +1,23 @@
+{
+  "seed": 2026,
+  "files": {
+    "uber_trips_fleet_hub.csv": 106,
+    "uber_payouts.csv": 6,
+    "uber_other_earnings.csv": 2,
+    "lyft_trips.csv": 28,
+    "turo_earnings_2026-10.csv": 36,
+    "Chase1234_Activity_20261031.csv": 33,
+    "Chase9001_Activity_20261031.csv": 19,
+    "amex_activity_2026-10.csv": 6
+  },
+  "account_net": {
+    "amex_platinum": "229.39",
+    "chase_1234": "2054.57",
+    "chase_ink_9001": "-95.99",
+    "lyft_balance": "683.62",
+    "turo_balance": "543.88",
+    "uber_balance": "228.47"
+  },
+  "checking_opening_balance": "3842.17",
+  "checking_closing_balance": "5896.74"
+}

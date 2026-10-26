@@ -1,0 +1,72 @@
+{
+  "company": "Bayou City Mobility LLC (fictional)",
+  "period": [
+    "2026-10-01",
+    "2026-10-31"
+  ],
+  "exceptions": [
+    {
+      "id": "E1",
+      "type": "payout_missing_deposit",
+      "date": "2026-10-26",
+      "amount": "327.59",
+      "accounts": [
+        "uber_balance",
+        "chase_1234"
+      ],
+      "truth": "Uber weekly payout sent Oct 26 never posted to checking in October. Should be flagged as in transit or missing, not matched to anything."
+    },
+    {
+      "id": "E2",
+      "type": "deposit_short",
+      "date": "2026-10-20",
+      "amount": "186.65",
+      "expected_amount": "191.65",
+      "accounts": [
+        "lyft_balance",
+        "chase_1234"
+      ],
+      "truth": "Lyft deposit is $5.00 less than the week's ride totals. Nothing in the ride export explains it; flag for review rather than force-match."
+    },
+    {
+      "id": "E3",
+      "type": "possible_duplicate",
+      "date": "2026-10-16",
+      "amount": "-17.36",
+      "accounts": [
+        "chase_ink_9001"
+      ],
+      "truth": "Two identical Supercharger charges the same day. Could be two sessions; flag for the owner rather than drop or double count silently."
+    },
+    {
+      "id": "E4",
+      "type": "likely_personal",
+      "date": "2026-10-18",
+      "amount": "-126.43",
+      "accounts": [
+        "chase_ink_9001"
+      ],
+      "truth": "Grocery purchase on the business card. Likely personal: should be flagged as owner draw, not deducted."
+    },
+    {
+      "id": "E5",
+      "type": "deposit_without_payout",
+      "date": "2026-10-23",
+      "amount": "64.20",
+      "accounts": [
+        "chase_1234"
+      ],
+      "truth": "Turo deposit with no payout row in the Turo earnings export (e.g. a claim reimbursement paid outside trip earnings). Should be flagged and asked about, not booked as trip revenue silently."
+    },
+    {
+      "id": "E6",
+      "type": "unidentified_income",
+      "date": "2026-10-17",
+      "amount": "150.00",
+      "accounts": [
+        "chase_1234"
+      ],
+      "truth": "Zelle from an individual with no platform record (possibly an off-platform Turo extension). Income, but the owner must say what it is."
+    }
+  ]
+}
