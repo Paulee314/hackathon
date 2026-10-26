@@ -1,0 +1,545 @@
+{
+  "rides": {
+    "f5a9ca5f-edf1-45da-b6ea-fff5782afe6b": {
+      "pickup_drive": 512000040,
+      "trip_drive": 512000061
+    },
+    "3439f0cfaa8a1dc7a3cfd4ae": {
+      "pickup_drive": 512000100,
+      "trip_drive": 512000127
+    },
+    "44df8a13-d4f3-48ee-8b5c-1a9533d91808": {
+      "pickup_drive": 512000140,
+      "trip_drive": 512000173
+    },
+    "c0099eba-cd73-4e00-81a0-ba056ce9da66": {
+      "pickup_drive": 512000183,
+      "trip_drive": 512000194
+    },
+    "a51149bb-e060-4724-a411-4258751b4c83": {
+      "pickup_drive": 512000221,
+      "trip_drive": 512000238
+    },
+    "2106119e-c40d-41b5-b97a-762393550840": {
+      "pickup_drive": 512000251,
+      "trip_drive": 512000264
+    },
+    "27655f91-2bb5-4283-8e10-75039e5cf6e9": {
+      "pickup_drive": 512000314,
+      "trip_drive": 512000333
+    },
+    "22a60b44-ef5f-431c-a8fd-b92dab266981": {
+      "pickup_drive": 512000339,
+      "trip_drive": 512000375
+    },
+    "93043fca-9543-46c3-aa22-0078503dc86b": {
+      "pickup_drive": 512000414,
+      "trip_drive": 512000419
+    },
+    "8bed5b65-94a4-429c-b383-d496000e05d0": {
+      "pickup_drive": 512000453,
+      "trip_drive": 512000478
+    },
+    "d7aa2208-6cff-40f0-b79e-dc822edc49c1": {
+      "pickup_drive": 512000509,
+      "trip_drive": 512000537
+    },
+    "a5721c6a-58d6-4944-9573-e7bb0d26efa0": {
+      "pickup_drive": 512000560,
+      "trip_drive": 512000593
+    },
+    "8ece78b0-6f29-49f1-8ed6-6b447f45b096": {
+      "pickup_drive": 512000606,
+      "trip_drive": 512000610
+    },
+    "c87dc450504944094c57e0b1": {
+      "pickup_drive": 512000654,
+      "trip_drive": 512000674
+    },
+    "cd64a752-b8ec-496e-9b33-6bc8c2553659": {
+      "pickup_drive": 512000706,
+      "trip_drive": 512000722
+    },
+    "d8ae93fb-d978-473a-9563-d56dc887417c": {
+      "pickup_drive": 512000730,
+      "trip_drive": 512000736
+    },
+    "0c56037f-d6c7-49cb-ae53-2f038b75d02a": {
+      "pickup_drive": 512000747,
+      "trip_drive": 512000773
+    },
+    "bb20e1d5-916b-4b37-8051-ac7c8e48e488": {
+      "pickup_drive": 512000792,
+      "trip_drive": 512000809
+    },
+    "a3e13774a5cbd6f4ec143c35": {
+      "pickup_drive": 512000842,
+      "trip_drive": 512000861
+    },
+    "84f32551-5366-4ce2-ad4d-666177bb3654": {
+      "pickup_drive": 512000879,
+      "trip_drive": 512000884
+    },
+    "63d52b10-2f9e-49c9-9828-f123a945e7bb": {
+      "pickup_drive": 512000908,
+      "trip_drive": 512000924
+    },
+    "ca6874f9caa126b311d6f2f2": {
+      "pickup_drive": 512000970,
+      "trip_drive": 512000980
+    },
+    "a79b8a2e-a02f-4007-9b75-115174bf589b": {
+      "pickup_drive": 512001008,
+      "trip_drive": 512001038
+    },
+    "f92af541-a5dc-4896-98d1-e3045aa26879": {
+      "pickup_drive": 512001052,
+      "trip_drive": 512001062
+    },
+    "f72699ec-6a1e-460d-81cd-81b0c6db0211": {
+      "pickup_drive": 512001091,
+      "trip_drive": 512001117
+    },
+    "51a248ee-6aa8-40b5-8494-a9bc4c046460": {
+      "pickup_drive": 512001143,
+      "trip_drive": 512001166
+    },
+    "ec79b3be-f96a-4c60-ae70-78ea8052b13c": {
+      "pickup_drive": 512001186,
+      "trip_drive": 512001219
+    },
+    "97f97ad6-a074-41bd-b1b8-ea7c237f0de0": {
+      "pickup_drive": 512001258,
+      "trip_drive": 512001289
+    },
+    "a95c2c0b-0746-4834-8afd-44ae2ef7b374": {
+      "pickup_drive": 512001320,
+      "trip_drive": 512001326
+    },
+    "7875a42b-3e28-4120-ba66-a3e9a0bb4fcd": {
+      "pickup_drive": 512001397,
+      "trip_drive": 512001423
+    },
+    "7522aa7f-a313-4dd6-b592-91d65bee8f77": {
+      "pickup_drive": 512001448,
+      "trip_drive": 512001454
+    },
+    "d7879ce4-0082-47e2-844d-e1c6a4b62e0d": {
+      "pickup_drive": 512001473,
+      "trip_drive": 512001487
+    },
+    "d03a863c216045b053b50b32": {
+      "pickup_drive": 512001523,
+      "trip_drive": 512001551
+    },
+    "099a0307-cb9d-4149-a888-1c56b3cd1e1c": {
+      "pickup_drive": 512001556,
+      "trip_drive": 512001594
+    },
+    "4e8494fb-9517-45da-b212-db56d9452ba0": {
+      "pickup_drive": 512001598,
+      "trip_drive": 512001615
+    },
+    "6c32fb0d-f070-4bb1-bae2-12b5a5d50dd0": {
+      "pickup_drive": 512001626,
+      "trip_drive": 512001655
+    },
+    "c988cfd5-a98a-43d1-97bc-9f31bcc1a936": {
+      "pickup_drive": 512001685,
+      "trip_drive": 512001703
+    },
+    "cfe30c989c917e50ad74dc0f": {
+      "pickup_drive": 512001744,
+      "trip_drive": 512001766
+    },
+    "46c27b434556c6fefc190b95": {
+      "pickup_drive": 512001789,
+      "trip_drive": 512001820
+    },
+    "4d2ecb65-9df0-4dde-8337-dda661963ad7": {
+      "pickup_drive": 512001838,
+      "trip_drive": 512001865
+    },
+    "324ce2dd-2d3f-4bf3-904d-7d95672f8dab": {
+      "pickup_drive": 512001870,
+      "trip_drive": 512001892
+    },
+    "5f98ecc18e277c1ba09cbe0d": {
+      "pickup_drive": 512001898,
+      "trip_drive": 512001927
+    },
+    "d5ece6d3-5437-4b74-8483-55956e696346": {
+      "pickup_drive": 512001950,
+      "trip_drive": 512001960
+    },
+    "a218dd9f-7543-4de1-930b-1eb64b20cf98": {
+      "pickup_drive": 512001976,
+      "trip_drive": 512002005
+    },
+    "167e71da-f9b7-4d10-876f-910c11ac44be": {
+      "pickup_drive": 512002010,
+      "trip_drive": 512002046
+    },
+    "41c48862ee8dc86563dfee52": {
+      "pickup_drive": 512002082,
+      "trip_drive": 512002107
+    },
+    "ce4b52166524dcd55e276358": {
+      "pickup_drive": 512002140,
+      "trip_drive": 512002154
+    },
+    "17d551eda7f2300fd005450f": {
+      "pickup_drive": 512002158,
+      "trip_drive": 512002185
+    },
+    "7b0dc700-0592-4d56-a21b-a4c47d70f3e1": {
+      "pickup_drive": 512002246,
+      "trip_drive": 512002254
+    },
+    "8be19af0-c3ad-49ef-aae9-aee3d74d762c": {
+      "pickup_drive": 512002294,
+      "trip_drive": 512002330
+    },
+    "b49cb061-2bb8-459d-ac53-18429b2831e1": {
+      "pickup_drive": 512002350,
+      "trip_drive": 512002374
+    },
+    "d53a5eba-6a24-42c3-9c99-2583a4f53734": {
+      "pickup_drive": 512002391,
+      "trip_drive": 512002420
+    },
+    "fd07b7ca-3b3a-43be-bd0e-648f836fe72a": {
+      "pickup_drive": 512002429,
+      "trip_drive": 512002458
+    },
+    "a941c30c-a53c-4521-b8d9-2d95b9d3fbd2": {
+      "pickup_drive": 512002480,
+      "trip_drive": 512002498
+    },
+    "7506e7d2-ca6e-4fc8-b58f-b7fcc79f0652": {
+      "pickup_drive": 512002512,
+      "trip_drive": 512002533
+    },
+    "9a10e8a39303672bd1806e2a": {
+      "pickup_drive": 512002573,
+      "trip_drive": 512002576
+    },
+    "1f95acaf6f3fc69a4d1d8a02": {
+      "pickup_drive": 512002589,
+      "trip_drive": 512002616
+    },
+    "3da948e980a81cbbbd4a58ad": {
+      "pickup_drive": 512002621,
+      "trip_drive": 512002628
+    },
+    "5b4d7862-b165-41ea-8a52-5be0f68dddcb": {
+      "pickup_drive": 512002655,
+      "trip_drive": 512002669
+    },
+    "5d396109-83bb-4916-b88f-4c244cf74765": {
+      "pickup_drive": 512002674,
+      "trip_drive": 512002684
+    },
+    "8380a16b-2061-4b85-86cd-bae5db0102de": {
+      "pickup_drive": 512002723,
+      "trip_drive": null
+    },
+    "989c2b3bfb74215b915219a7": {
+      "pickup_drive": 512002740,
+      "trip_drive": 512002768
+    },
+    "fad0ebf2-b46e-4085-8d22-92de9b556bf0": {
+      "pickup_drive": 512002777,
+      "trip_drive": 512002813
+    },
+    "dd0e4de9-8fe2-4a24-bd25-af7c13fc42ee": {
+      "pickup_drive": 512002836,
+      "trip_drive": 512002860
+    },
+    "f8930baf-8c01-4d1c-87ce-f7b16d8aa70b": {
+      "pickup_drive": 512002881,
+      "trip_drive": 512002890
+    },
+    "28945037-5f52-4fc4-b674-67387e9b56d2": {
+      "pickup_drive": 512002921,
+      "trip_drive": 512002924
+    },
+    "142e0f98-ae99-4691-b7a3-6672413e4826": {
+      "pickup_drive": 512002964,
+      "trip_drive": 512002993
+    },
+    "fc15b536-7cf8-4d4a-9aab-bcebd728f6f4": {
+      "pickup_drive": 512003000,
+      "trip_drive": null
+    },
+    "542a6174-41d9-4cbc-9120-ce51d03ea6e7": {
+      "pickup_drive": 512003029,
+      "trip_drive": 512003057
+    },
+    "36079a2a-e59d-4568-a0f3-2241177dd1c5": {
+      "pickup_drive": 512003088,
+      "trip_drive": 512003095
+    },
+    "b0d95dc39672e2870f8eeec6": {
+      "pickup_drive": 512003115,
+      "trip_drive": 512003132
+    },
+    "b78af267-527f-4b9a-bdf4-393978851890": {
+      "pickup_drive": 512003173,
+      "trip_drive": 512003178
+    },
+    "1bda22cf-907b-42b7-b3d2-fd5bec2cfc18": {
+      "pickup_drive": 512003215,
+      "trip_drive": null
+    },
+    "fd6cb580-ce21-426c-9b0c-6bb0cd3e91d5": {
+      "pickup_drive": 512003251,
+      "trip_drive": 512003261
+    },
+    "d797900d-b4e6-488c-b7f3-0b26094de00b": {
+      "pickup_drive": 512003277,
+      "trip_drive": 512003280
+    },
+    "61b1c6f2-972e-4a6d-b9ef-801b969fa237": {
+      "pickup_drive": 512003316,
+      "trip_drive": 512003351
+    },
+    "2b0d86d4-1784-4d5e-a44f-7ae91aeb50c8": {
+      "pickup_drive": 512003364,
+      "trip_drive": null
+    },
+    "06bb72f7-9491-4337-bc3a-3d5ddd1706f5": {
+      "pickup_drive": 512003387,
+      "trip_drive": 512003392
+    },
+    "70ee17e3-16e1-4413-8e4e-45ae62c63adf": {
+      "pickup_drive": 512003430,
+      "trip_drive": 512003445
+    },
+    "ee797106-f4fc-482e-88df-ae47ef193855": {
+      "pickup_drive": 512003455,
+      "trip_drive": 512003483
+    },
+    "b36151e4-e2b7-40ee-9241-750c42643855": {
+      "pickup_drive": 512003499,
+      "trip_drive": 512003506
+    },
+    "c0205f09-78b1-4b6c-aa1b-c2e33e1e8bd8": {
+      "pickup_drive": 512003582,
+      "trip_drive": 512003601
+    },
+    "c0bcc269-bf71-4a17-9306-540358260a30": {
+      "pickup_drive": 512003635,
+      "trip_drive": 512003666
+    },
+    "b2aeb1fc-f73e-48bb-96ef-58ce6129bdeb": {
+      "pickup_drive": 512003702,
+      "trip_drive": 512003712
+    },
+    "983bab28-4dc1-4e06-b181-08d83ea87f15": {
+      "pickup_drive": 512003728,
+      "trip_drive": 512003757
+    },
+    "8afd6238-e977-42bd-8d89-84a38c90680b": {
+      "pickup_drive": 512003786,
+      "trip_drive": 512003789
+    },
+    "94996ab9-ab8e-4041-ae35-de9dd9048fce": {
+      "pickup_drive": 512003812,
+      "trip_drive": 512003828
+    },
+    "b2f53e5c-fd2a-40c8-b69c-8a50345f2a12": {
+      "pickup_drive": 512003836,
+      "trip_drive": 512003872
+    },
+    "9f70b8ba-632d-4714-ade4-2594869316c7": {
+      "pickup_drive": 512003902,
+      "trip_drive": 512003923
+    },
+    "7053ce0b-4611-4a58-b409-24ff629cdb8f": {
+      "pickup_drive": 512003955,
+      "trip_drive": 512003964
+    },
+    "71be4d88-0531-43ae-8086-8dcbf0b6459a": {
+      "pickup_drive": 512004002,
+      "trip_drive": null
+    },
+    "a122d0d2-b0f0-4c7e-bbe8-f16e39cff723": {
+      "pickup_drive": 512004018,
+      "trip_drive": 512004053
+    },
+    "7c57aeee-dc1f-44d2-8df0-bcd1cc3a398c": {
+      "pickup_drive": 512004122,
+      "trip_drive": 512004138
+    },
+    "c0eb1633-6c70-409f-bb4a-2d40cbb079b2": {
+      "pickup_drive": 512004159,
+      "trip_drive": 512004178
+    },
+    "4f83d975-5239-45bb-bc29-5d1b6a96cf7e": {
+      "pickup_drive": 512004185,
+      "trip_drive": 512004219
+    },
+    "5fbe16a9-3083-40d7-8357-2d566f797e3e": {
+      "pickup_drive": 512004232,
+      "trip_drive": 512004238
+    },
+    "ffea9bf203c5664e2f8a386a": {
+      "pickup_drive": 512004272,
+      "trip_drive": 512004289
+    },
+    "82d2781dad7386b8c31ebce3": {
+      "pickup_drive": 512004293,
+      "trip_drive": null
+    },
+    "4f8ef6e5-9411-417e-9de3-49139d6cd5f1": {
+      "pickup_drive": 512004308,
+      "trip_drive": 512004318
+    },
+    "df1fa62c589e2fe86d816402": {
+      "pickup_drive": 512004350,
+      "trip_drive": 512004389
+    },
+    "cd31370e-c6a9-4ffa-8214-9a694eba6849": {
+      "pickup_drive": 512004409,
+      "trip_drive": null
+    },
+    "b67eed92-4178-461d-9195-8143a3ea5ba2": {
+      "pickup_drive": 512004433,
+      "trip_drive": 512004455
+    },
+    "58a4a05bee2fcf8c3febafad": {
+      "pickup_drive": 512004467,
+      "trip_drive": 512004502
+    },
+    "3a97c922-13f1-4b3c-8ec3-703b37e16834": {
+      "pickup_drive": 512004550,
+      "trip_drive": 512004562
+    },
+    "da2f6d41-bd0b-4cff-a9d5-29b94a466e1e": {
+      "pickup_drive": 512004572,
+      "trip_drive": null
+    },
+    "95980705-73f0-494d-ae08-b785c173bada": {
+      "pickup_drive": 512004607,
+      "trip_drive": 512004635
+    },
+    "dd19b70d-05ec-4d95-9a6a-a6680b44e128": {
+      "pickup_drive": 512004649,
+      "trip_drive": 512004678
+    },
+    "cb3348b8-d5aa-4e96-ad29-96da8e86e483": {
+      "pickup_drive": 512004708,
+      "trip_drive": 512004720
+    },
+    "1ada81b0-e867-4c4e-911a-adf8ff87d3fb": {
+      "pickup_drive": 512004732,
+      "trip_drive": 512004772
+    },
+    "51773467-b279-452b-966f-46d1984df6fc": {
+      "pickup_drive": 512004810,
+      "trip_drive": 512004816
+    },
+    "ca3702b2-e3b0-41de-a481-5ea7744be5da": {
+      "pickup_drive": 512004846,
+      "trip_drive": 512004863
+    },
+    "2bb9dbd8-233f-4d7f-9e93-30e5c8b28d57": {
+      "pickup_drive": 512004874,
+      "trip_drive": 512004882
+    },
+    "f29e647258b4ff375e880971": {
+      "pickup_drive": 512004890,
+      "trip_drive": 512004903
+    },
+    "b091d372-cd24-4df9-8351-a26028c333a9": {
+      "pickup_drive": 512004914,
+      "trip_drive": 512004946
+    },
+    "3806a896-8d6d-4845-86c5-69ce17bc112f": {
+      "pickup_drive": 512004978,
+      "trip_drive": 512004981
+    },
+    "9861cfc2-a3c4-4d34-a8d2-c6091088a172": {
+      "pickup_drive": 512004989,
+      "trip_drive": 512005025
+    },
+    "259d2f86-a2ce-4540-a2b5-773870eb5571": {
+      "pickup_drive": 512005036,
+      "trip_drive": 512005039
+    },
+    "6a2639af992acc5f24b4094c": {
+      "pickup_drive": 512005087,
+      "trip_drive": 512005096
+    },
+    "7154ca81577860a0d344eba7": {
+      "pickup_drive": 512005123,
+      "trip_drive": 512005139
+    },
+    "ab652e16d26e607eb4d0afd1": {
+      "pickup_drive": 512005159,
+      "trip_drive": 512005194
+    },
+    "a7b15f21b4cb9d0ab27101e2": {
+      "pickup_drive": 512005203,
+      "trip_drive": 512005221
+    },
+    "40c5f5d2-1801-4648-9182-4e0cd73f213d": {
+      "pickup_drive": 512005251,
+      "trip_drive": null
+    },
+    "c1a0dbac-4a84-4014-9164-874fed0c2230": {
+      "pickup_drive": 512005286,
+      "trip_drive": 512005310
+    },
+    "c209cd98-e30e-4b19-a5ce-0290a2efeff5": {
+      "pickup_drive": 512005347,
+      "trip_drive": 512005353
+    },
+    "0ff25a1f-6dcf-4ed0-b0a1-48aa7d149c1d": {
+      "pickup_drive": 512005375,
+      "trip_drive": 512005411
+    },
+    "cfc98ee7fd3eed16946cadc1": {
+      "pickup_drive": 512005461,
+      "trip_drive": 512005477
+    },
+    "1f262a64-f51a-483a-9b1e-6077dcb37082": {
+      "pickup_drive": 512005502,
+      "trip_drive": 512005519
+    },
+    "5afa7e1f6001c5ee74d88a5f": {
+      "pickup_drive": 512005552,
+      "trip_drive": 512005570
+    },
+    "5e3617eb-d96e-437e-a03b-4d1f6583bfbb": {
+      "pickup_drive": 512005580,
+      "trip_drive": 512005607
+    },
+    "4a48a394-d2c1-4fdf-a2b5-f7bab87aa0d2": {
+      "pickup_drive": 512005632,
+      "trip_drive": 512005651
+    },
+    "af94e003-b2f1-4e98-9ea2-6af2176d1d72": {
+      "pickup_drive": 512005659,
+      "trip_drive": 512005670
+    },
+    "2845a3a42cafceb4d0b2b675": {
+      "pickup_drive": 512005708,
+      "trip_drive": 512005717
+    },
+    "2c341d58-59e2-4c52-b980-f7de870ba17f": {
+      "pickup_drive": 512005729,
+      "trip_drive": 512005757
+    },
+    "2fc6f25c-449a-47e9-bd5b-f03331cd1f27": {
+      "pickup_drive": 512005775,
+      "trip_drive": 512005812
+    }
+  },
+  "rear_left_leak": [
+    "2026-10-12",
+    "2026-10-25"
+  ],
+  "refilled": "2026-10-26"
+}

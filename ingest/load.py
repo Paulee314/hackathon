@@ -15,7 +15,7 @@ from decimal import Decimal
 from pathlib import Path
 from typing import List, Optional
 
-from .parsers import detect, read_csv
+from .parsers import detect, is_telemetry, read_csv
 from .schema import COLUMNS, Transaction
 
 
@@ -24,6 +24,8 @@ def load_folder(folder, start: Optional[str] = None, end: Optional[str] = None):
     kept, report, skipped = {}, [], []
     for path in files:
         header, rows = read_csv(path)
+        if is_telemetry(header):
+            continue  # car data and ride offers: see the car package
         parser = detect(header)
         if parser is None:
             skipped.append(path)

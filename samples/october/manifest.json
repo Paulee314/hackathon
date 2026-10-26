@@ -19,5 +19,12 @@
     "uber_balance": "228.47"
   },
   "checking_opening_balance": "3842.17",
-  "checking_closing_balance": "5896.74"
+  "checking_closing_balance": "5896.74",
+  "car_files": {
+    "car/tessie_drives_rideshare.csv": 281,
+    "car/tessie_tire_pressure.csv": 31,
+    "car/ride_offers.csv": 238
+  },
+  "car_miles": "2152.00",
+  "car_kwh": "537.37"
 }

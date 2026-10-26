@@ -20,7 +20,7 @@ from decimal import Decimal, InvalidOperation
 from typing import Optional
 
 PLATFORM_ACCOUNTS = {"uber_balance", "lyft_balance", "turo_balance"}
-KINDS = {"earning", "payout", "fee", "bank", "card"}
+KINDS = {"earning", "payout", "fee", "bank", "card", "cash"}  # cash: spoken notes, account cash_on_hand
 BUSINESS_LINES = {"rideshare", "turo", "contract_work", ""}  # "" = decided later
 
 
@@ -28,7 +28,7 @@ BUSINESS_LINES = {"rideshare", "turo", "contract_work", ""}  # "" = decided late
 class Transaction:
     date: str                       # YYYY-MM-DD, the day the money moved
     amount: Decimal                 # signed, from the account's point of view
-    source: str                     # uber | lyft | turo | chase_checking | chase_card | amex
+    source: str                     # uber | lyft | turo | chase_checking | chase_card | amex | voice
     account: str                    # where the money sits
     kind: str                       # one of KINDS
     description: str

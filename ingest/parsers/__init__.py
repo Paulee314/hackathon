@@ -28,6 +28,19 @@ def read_csv(path: Path) -> Tuple[List[str], List[Tuple[int, Dict[str, str]]]]:
     return header, rows
 
 
+# Car telemetry and ride offers: not ledger rows. The car package reads these.
+TELEMETRY = [
+    frozenset({"starting_odometer", "ending_odometer", "energy_used_kwh"}),  # Tessie drives
+    frozenset({"front_left_psi", "rear_left_psi"}),                         # tire pressure
+    frozenset({"offer_id", "pickup_miles", "decision"}),                     # ride offers
+]
+
+
+def is_telemetry(header: List[str]) -> bool:
+    cols = set(header)
+    return any(sig <= cols for sig in TELEMETRY)
+
+
 def detect(header: List[str]):
     cols = set(header)
     for p in PARSERS:

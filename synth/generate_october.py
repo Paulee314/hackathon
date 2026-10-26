@@ -13,6 +13,7 @@ used to score the close agent. Same seed, same files.
 from __future__ import annotations
 
 import argparse
+import calendar
 import csv
 import json
 import random
@@ -286,9 +287,9 @@ class Month:
         self.card(date(2026, 10, 24), "BAYOU SHINE CAR WASH", "Automotive", d2(-45.47))
         self.card(date(2026, 10, 14), "T-MOBILE*AUTO PAY", "Bills & Utilities", d2(-85.00))
         self.card(date(2026, 10, 6), "PARKHOUSTON", "Travel", d2(-6.00))
-        self.card(date(2026, 10, 12), "AMAZON MKTPL*ZT4K91", "Shopping", d2(-38.62))
+        self.card(date(2026, 10, 12), "DETAILPRO SUPPLY CO", "Shopping", d2(-38.62))
         groceries = date(2026, 10, 18)
-        self.card(groceries, "H-E-B #482", "Groceries", d2(-126.43))
+        self.card(groceries, "BAYOU FRESH MARKET #482", "Groceries", d2(-126.43))
         self.exceptions.append({
             "id": "E4", "type": "likely_personal", "date": groceries.isoformat(), "amount": "-126.43",
             "accounts": [f"chase_ink_{INK}"],
@@ -300,10 +301,113 @@ class Month:
             (date(2026, 10, 2), "OPENAI *CHATGPT SUBSCR", "Business Services-Internet Services", 20.00),
             (date(2026, 10, 3), "HISCOX INSURANCE", "Business Services-Insurance Services", 45.00),
             (date(2026, 10, 7), "APPLE.COM/BILL", "Merchandise & Supplies-Internet Purchase", 2.99),
-            (date(2026, 10, 11), "WHATABURGER 1047", "Restaurant-Restaurant", 14.32),
+            (date(2026, 10, 11), "LONE STAR BURGER 1047", "Restaurant-Restaurant", 14.32),
             (date(2026, 10, 21), "GOOGLE *WORKSPACE BAYOU", "Business Services-Internet Services", 7.20),
         ]:
             self.amex_charge(day, desc, cat, d2(amt))
+
+    # ---------- car telemetry and ride offers ----------
+    def car(self):
+        """Tessie-style drives for the rideshare car, daily tire pressure, and every ride offer.
+
+        Each Uber or Lyft ride gets an unpaid pickup drive and (unless cancelled) a paid trip
+        drive. The rear-left tire leaks from Oct 12 to Oct 25 and is refilled Oct 26. Energy per
+        mile rises 0.2% per psi of average under-inflation (the fueleconomy.gov figure for gas
+        cars, used here as a stand-in). Drives are not labelled with trips: the engine has to
+        match them by time, as it would with real Tessie data. car_truth.json holds the answers.
+        """
+        rng = self.rng
+        rides = []
+        for t in self.uber_trips:
+            done = t["status"] == "COMPLETED"
+            rides.append({"platform": "uber", "trip_id": t["trip_id"],
+                          "at": datetime.strptime(t["trip_datetime_local"], "%Y-%m-%d %H:%M"),
+                          "miles": float(t["distance_mi"]), "minutes": float(t["duration_min"]),
+                          "fare": t["fare_ex_tip"] if done else t["cancel_fee"], "completed": done,
+                          "to": t["pickup_address"]})
+        for t in self.lyft_trips:
+            done = t["type"] != "ride_cancel"
+            rides.append({"platform": "lyft", "trip_id": t["ride_id"],
+                          "at": datetime.strptime(t["accepted_local"], "%Y-%m-%d %H:%M"),
+                          "miles": float(t["miles"]), "minutes": float(t["minutes"]),
+                          "fare": t["ride_earnings"] + t["other_adjustments"], "completed": done,
+                          "to": "Houston, TX"})
+        rides.sort(key=lambda r: r["at"])
+
+        # Tire pressure, read every morning. Placard pressure 42 psi.
+        self.tires, avg_drop = [], {}
+        leak_start, leak_end = date(2026, 10, 12), date(2026, 10, 25)
+        for day in days(START, END):
+            base = 42.0 - (1.0 if day >= date(2026, 10, 20) else 0.0)  # cold front from Oct 20
+            rl = base - 0.5 * ((day - leak_start).days + 1) if leak_start <= day <= leak_end else base
+            fl, fr, rr = (base + rng.uniform(-0.4, 0.4) for _ in range(3))
+            rl += rng.uniform(-0.3, 0.3)
+            vals = [round(v, 1) for v in (fl, fr, rl, rr)]
+            self.tires.append([f"{day.isoformat()} 07:30:00"] + vals)
+            avg_drop[day] = max(0.0, 42.0 - sum(vals) / 4)
+
+        def epoch(local: datetime) -> int:  # Houston is UTC-5 in October (CDT)
+            return calendar.timegm(local.timetuple()) + 5 * 3600
+
+        self.drives, self.offers = [], []
+        truth = {}
+        odo, battery, prev_end, prev_place, today = 18240.0, 80.0, None, "Home", None
+        drive_id = 512000000
+
+        def drive(start: datetime, minutes: float, miles: float, frm: str, to: str):
+            nonlocal odo, battery, drive_id
+            eff = 0.250 * (1 + 0.002 * avg_drop[start.date()]) * rng.uniform(0.94, 1.06)
+            kwh = round(miles * eff, 2)
+            end = start + timedelta(minutes=minutes)
+            b_end = max(5.0, battery - kwh / 75.0 * 100)
+            drive_id += rng.randint(3, 40)
+            self.drives.append([
+                drive_id, start.strftime("%Y-%m-%d %H:%M:%S"), end.strftime("%Y-%m-%d %H:%M:%S"),
+                epoch(start), epoch(end), round(miles, 2), frm, to, "", "", "", "", "", "",
+                round(odo, 2), round(odo + miles, 2), round(battery), round(b_end), kwh,
+                round(miles * 0.95, 2), round(miles / max(minutes, 1) * 60), round(miles / max(minutes, 1) * 60 * 1.6)])
+            odo += miles
+            battery = b_end if b_end > 25 else 80.0  # Supercharger top-up when low
+            return drive_id, end
+
+        for r in rides:
+            day = r["at"].date()
+            if day != today:
+                if today is not None:
+                    drive(prev_end, rng.uniform(12, 25), rng.uniform(4, 12), prev_place, "Home")
+                today, battery, prev_end, prev_place = day, 80.0, None, "Home"
+            start = max(r["at"], prev_end) if prev_end else r["at"]
+            pickup_mi = min(8.0, max(0.2, rng.lognormvariate(0.3, 0.6)))
+            pickup_min = pickup_mi * 2.6 + rng.uniform(1, 3)
+            p_id, p_end = drive(start, pickup_min, pickup_mi, prev_place, r["to"])
+            entry = {"pickup_drive": p_id, "trip_drive": None}
+            if r["completed"] and r["miles"] > 0:
+                t_id, t_end = drive(p_end + timedelta(minutes=2), r["minutes"], r["miles"], r["to"], "Houston, TX")
+                entry["trip_drive"] = t_id
+                prev_end, prev_place = t_end, "Houston, TX"
+            else:
+                prev_end, prev_place = p_end + timedelta(minutes=5), r["to"]
+            truth[r["trip_id"]] = entry
+
+            est_miles = r["miles"] if r["completed"] else round(rng.uniform(3, 12), 2)
+            est_min = r["minutes"] if r["completed"] else round(est_miles * 2.3 + 4, 2)
+            est_fare = r["fare"] if r["completed"] else d2(est_miles * 1.15 + est_min * 0.22 + 2)
+            self.offers.append([self.hexid(16), r["platform"], (r["at"] - timedelta(minutes=1)).strftime("%Y-%m-%d %H:%M:%S"),
+                                round(pickup_mi, 2), round(pickup_min, 1), round(est_miles, 2), round(est_min, 1),
+                                est_fare, "accepted", r["trip_id"]])
+            if rng.random() < 0.7:
+                d_pick = min(10.0, max(0.5, rng.lognormvariate(1.0, 0.5)))
+                d_miles = rng.uniform(2, 25)
+                d_min = d_miles * 2.2 + rng.uniform(3, 8)
+                d_fare = d2(d_miles * 1.15 + d_min * 0.22 + rng.uniform(1, 4))
+                self.offers.append([self.hexid(16), rng.choice(["uber", "lyft"]),
+                                    (r["at"] - timedelta(minutes=rng.randint(3, 20))).strftime("%Y-%m-%d %H:%M:%S"),
+                                    round(d_pick, 2), round(d_pick * 2.6 + 2, 1), round(d_miles, 2), round(d_min, 1),
+                                    d_fare, "declined", ""])
+        drive(prev_end, rng.uniform(12, 25), rng.uniform(4, 12), prev_place, "Home")
+        self.offers.sort(key=lambda o: o[2])
+        self.car_truth = {"rides": truth, "rear_left_leak": [leak_start.isoformat(), leak_end.isoformat()],
+                          "refilled": "2026-10-26"}
 
     # ---------- write ----------
     def write(self, out: Path):
@@ -351,6 +455,34 @@ class Month:
         dump("amex_activity_2026-10.csv", ["Date", "Receipt", "Description", "Card Member", "Account #", "Amount", "Extended Details",
                                           "Appears On Your Statement As", "Address", "City/State", "Zip Code", "Country", "Reference", "Category"], amex)
 
+        ledger_files = dict(files)
+        (out / "car").mkdir(exist_ok=True)
+        drive_cols = ["id", "start_local", "end_local", "started_at", "ended_at", "miles", "starting_location",
+                      "ending_location", "starting_saved_location", "ending_saved_location", "starting_latitude",
+                      "starting_longitude", "ending_latitude", "ending_longitude", "starting_odometer",
+                      "ending_odometer", "starting_battery", "ending_battery", "energy_used_kwh",
+                      "autopilot_miles", "average_speed", "max_speed"]
+        dump("car/tessie_drives_rideshare.csv", drive_cols, self.drives)
+        dump("car/tessie_tire_pressure.csv", ["timestamp", "front_left_psi", "front_right_psi", "rear_left_psi", "rear_right_psi"], self.tires)
+        dump("car/ride_offers.csv", ["offer_id", "platform", "offered_at", "pickup_miles", "pickup_minutes", "trip_miles",
+                                     "trip_minutes", "offered_fare", "decision", "trip_id"], self.offers)
+        (out / "car" / "car_truth.json").write_text(json.dumps(self.car_truth, indent=2) + "\n")
+        profile = {
+            "vehicle": "Tesla Model Y, the rideshare car (fictional operator)",
+            "placard_tire_psi": 42,
+            "home_electricity_per_kwh": 0.14,
+            "supercharger_per_kwh": 0.42,
+            "share_of_energy_from_supercharging": 0.25,
+            "depreciation_per_mile": 0.20,
+            "tire_set_cost": 1100,
+            "tire_life_miles": 40000,
+            "target_hourly_rate": 20.00,
+            "note": "Owner-entered assumptions for the synthetic demo. The app asks each driver for these.",
+        }
+        (out / "car" / "vehicle_profile.json").write_text(json.dumps(profile, indent=2) + "\n")
+        car_files = {k: v for k, v in files.items() if k.startswith("car/")}
+        files = ledger_files
+
         key = {
             "company": "Bayou City Mobility LLC (fictional)",
             "period": [START.isoformat(), END.isoformat()],
@@ -363,6 +495,9 @@ class Month:
             "account_net": {k: str(v) for k, v in sorted(self.expected.items())},
             "checking_opening_balance": str(OPENING_BALANCE),
             "checking_closing_balance": str(self.closing_balance),
+            "car_files": car_files,
+            "car_miles": str(d2(sum(Decimal(str(d[5])) for d in self.drives))),
+            "car_kwh": str(d2(sum(Decimal(str(d[18])) for d in self.drives))),
         }
         (out / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
         return manifest
@@ -373,6 +508,7 @@ def generate(out: Path, seed: int = SEED) -> dict:
     m.rideshare()
     m.turo()
     m.expenses()
+    m.car()
     return m.write(out)
 
 

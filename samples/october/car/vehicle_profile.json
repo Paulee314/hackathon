@@ -1,0 +1,12 @@
+{
+  "vehicle": "Tesla Model Y, the rideshare car (fictional operator)",
+  "placard_tire_psi": 42,
+  "home_electricity_per_kwh": 0.14,
+  "supercharger_per_kwh": 0.42,
+  "share_of_energy_from_supercharging": 0.25,
+  "depreciation_per_mile": 0.2,
+  "tire_set_cost": 1100,
+  "tire_life_miles": 40000,
+  "target_hourly_rate": 20.0,
+  "note": "Owner-entered assumptions for the synthetic demo. The app asks each driver for these."
+}
