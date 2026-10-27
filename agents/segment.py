@@ -120,8 +120,11 @@ def read_crop(path: Path) -> Dict:
 
 
 def find_receipts(photo: Path, find: Callable[[Path, str], str] = segment) -> List[Dict]:
-    """Ask SAM once per prompt and merge: duplicates collapse to the most confident box."""
-    return parse_boxes("".join(find(photo, p) for p in SAM_PROMPTS))
+    """Ask SAM once per prompt, both at the same time, and merge: duplicates collapse to the
+    most confident box."""
+    with ThreadPoolExecutor(max_workers=len(SAM_PROMPTS)) as pool:
+        outputs = list(pool.map(lambda p: find(photo, p), SAM_PROMPTS))
+    return parse_boxes("".join(outputs))
 
 
 def cut_all(photo: Path, boxes: List[Dict], out_dir: Path,

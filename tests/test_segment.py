@@ -75,7 +75,7 @@ class FindReceipts(unittest.TestCase):
             return sam(*[(*p, 0.8) for p in PILE[2:]])
 
         boxes = find_receipts(Path("pile.jpg"), find=find)
-        self.assertEqual(asked, list(SAM_PROMPTS))
+        self.assertEqual(sorted(asked), sorted(SAM_PROMPTS))
         self.assertEqual(corners(boxes), PILE)
         self.assertEqual([b["confidence"] for b in boxes], [0.9, 0.9, 0.9, 0.9, 0.8])
 
