@@ -2,7 +2,8 @@
 and segmentation (SAM 3.1).
 
 Standard library only. Reads META_API_KEY from .env (never printed). Retries rate limits and
-server errors with backoff. Every call appends one line to data/usage.jsonl so spend is visible.
+server errors with backoff. Every call appends one line to data/usage.jsonl (USAGE_LOG moves it)
+with what it cost, so spend is visible and the hosted app can cap it.
 """
 from __future__ import annotations
 
@@ -24,6 +25,12 @@ CHAT_MODEL = "muse-spark-1.3"
 IMAGE_MODEL = "muse-image-1.0"
 VOICE_MODEL = "muse-voice-transcribe-1.0"
 SEGMENT_MODEL = "sam-3.1"
+USAGE_LOG = Path(os.environ.get("USAGE_LOG", ROOT / "data" / "usage.jsonl"))
+
+# Meta Model API list prices (Oct 2026), in dollars.
+PER_MILLION = {"muse-spark-1.3": (1.25, 0.15, 4.25)}  # dollars per million: input, cached input, output
+PER_IMAGE = {IMAGE_MODEL: 0.01, SEGMENT_MODEL: 0.0025}
+PER_AUDIO_HOUR = {VOICE_MODEL: 0.18}
 
 
 class MetaAPIError(RuntimeError):
@@ -44,15 +51,30 @@ def _key() -> str:
     return value
 
 
+def cost_of(row: Dict[str, Any]) -> float:
+    """Dollars for one usage-log row, from the token counts, images or audio it records."""
+    model = row.get("model", "")
+    if model in PER_IMAGE:
+        return PER_IMAGE[model] * (row.get("images") or 1)
+    if model in PER_AUDIO_HOUR:
+        return PER_AUDIO_HOUR[model] * (row.get("audio_ms") or 0) / 3_600_000
+    usage = row.get("usage") or {}
+    price_in, price_cached, price_out = PER_MILLION.get(model, PER_MILLION[CHAT_MODEL])
+    n_in = usage.get("prompt_tokens") or usage.get("input_tokens") or 0
+    cached = (usage.get("prompt_tokens_details") or usage.get("input_tokens_details") or {}).get("cached_tokens") or 0
+    n_out = usage.get("completion_tokens") or usage.get("output_tokens") or 0
+    return ((n_in - cached) * price_in + cached * price_cached + n_out * price_out) / 1_000_000
+
+
 def _log(kind: str, model: str, seconds: float, usage: Optional[Dict[str, Any]] = None, extra: Optional[Dict] = None):
-    path = ROOT / "data" / "usage.jsonl"
-    path.parent.mkdir(parents=True, exist_ok=True)
+    USAGE_LOG.parent.mkdir(parents=True, exist_ok=True)
     row = {"at": time.strftime("%Y-%m-%dT%H:%M:%S"), "kind": kind, "model": model, "seconds": round(seconds, 2)}
     if usage:
         row["usage"] = usage
     if extra:
         row.update(extra)
-    with open(path, "a") as f:
+    row["cost"] = round(cost_of(row), 6)
+    with open(USAGE_LOG, "a") as f:
         f.write(json.dumps(row) + "\n")
 
 

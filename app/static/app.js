@@ -690,14 +690,15 @@ $('settingsBtn').addEventListener('click', () => {
   const resetBtn = el('button', { type: 'button', class: 'btn', text: 'Reset the demo' });
   let armed = false;
   resetBtn.addEventListener('click', async () => {
-    if (!armed) { armed = true; resetBtn.textContent = 'Tap again to clear your answers and entries'; return; }
+    if (!armed) { armed = true; resetBtn.textContent = 'Tap again to clear your answers, entries and photos'; return; }
     try { const r = await api('/api/reset', { method: 'POST' }); renderHome(r.home); toast('Demo reset'); closeSheet(); } catch (e) { toast(e.message); }
   });
   const today = home ? new Date(home.today + 'T12:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : '';
   openSheet([
     title('Settings'),
     el('p', { text: 'Bayou City Mobility LLC is a made-up company. Every number here comes from a synthetic month built for this demo.' }),
-    rows([['Today, in the app', today], ['Month', home ? home.month : '']]),
+    rows([['Today, in the app', today], ['Month', home ? home.month : ''], ['Your copy', 'Only this browser sees it']]),
+    el('p', { class: 'muted', text: 'Please don’t upload real receipts or say real account details. What you send goes to Meta’s models, and Meta may use it to improve them.' }),
     el('div', { class: 'section-title' }, el('span', { text: 'Meta models doing the work' })),
     rows([['Muse Spark', 'Reads receipts, books cash, answers'], ['SAM 3.1', 'Finds each receipt in a photo'], ['Muse Voice Transcribe', 'Hears what you say'], ['Muse Image', 'Made the demo receipts']]),
     el('div', { class: 'actions' }, resetBtn),
@@ -715,9 +716,28 @@ document.addEventListener('keydown', (e) => {
   closeSheet();
 });
 
+/* ---------- first visit: say plainly that this is made-up data ---------- */
+const NOTICE_KEY = 'rideoff-notice-1';
+function noticeSeen() {
+  try { return localStorage.getItem(NOTICE_KEY) === 'yes'; } catch (_) { return false; }
+}
+function showNotice() {
+  openSheet([
+    title('A demo with made-up data'),
+    el('p', { text: 'You’re looking at a fictional driver’s October. The company, rides, bank feeds and receipts are all synthetic.' }),
+    el('p', { text: 'Please don’t upload real receipts or say real account details. What you send goes to Meta’s models, and Meta may use it to improve them.' }),
+    el('p', { class: 'muted', text: 'Your answers are yours alone: only this browser sees them, and they’re cleared after 2 days away. Settings has a reset.' }),
+    el('div', { class: 'actions' }, el('button', {
+      type: 'button', class: 'btn primary', text: 'Got it',
+      onclick: () => { try { localStorage.setItem(NOTICE_KEY, 'yes'); } catch (_) { /* private mode */ } closeSheet(); },
+    })),
+  ]);
+}
+
 (async () => {
   try {
     renderHome(await api('/api/home'));
+    if (!noticeSeen()) showNotice();
   } catch (e) {
     $('headline').textContent = 'Couldn’t open your books';
     $('sub').textContent = e.message;

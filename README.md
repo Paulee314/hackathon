@@ -42,9 +42,29 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 
 A cloud sits in the middle of the screen with bubbles around it: profit, items to review, Turo, rides, receipts and the tire. Hold the cloud and talk to log cash you spent or ask about your month; tap a bubble to open it. The browser records 16 kHz WAV, Muse Voice Transcribe turns it into words, and Muse Spark either books a cash entry or answers from the books. Every number on screen is computed in code (`app/books.py`); the model may only use those numbers when it answers. The review bubble opens one card at a time with the evidence (the receipt photo or the voice note), Muse Spark's suggestion, and Approve, Change or Explain. You can also say a ride rule out loud ("what if I skipped pickups over three miles?"): Muse Spark turns it into a rule and the app replays it on the month.
 
-The microphone needs `localhost` or https. The app pretends today is Oct 31, 2026 (`APP_TODAY`), so the synthetic month reads as almost closed. Settings has a reset that clears your answers and entries.
+The microphone and camera need `localhost` or https. The app pretends today is Oct 31, 2026 (`APP_TODAY`), so the synthetic month reads as almost closed. Each browser gets its own copy of the month (a cookie holds a random visitor id; state lives in `data/app/visitors/<id>/`), so several people can use it at once without seeing each other's answers. Settings has a reset that clears only yours. The first visit shows a notice that the data is made up and that nothing real should be uploaded or said.
 
 `.env` and `data/` are git-ignored. Real financial data never goes in this repo; the demo uses synthetic data only.
+
+## Hosting
+
+The live demo runs on [Modal](https://modal.com) from `deploy/modal_app.py`: one warm container serving the same FastAPI app over https, with visitor state and the usage log on a Modal Volume. `.env`, `data/` and `.venv` are never uploaded; the Meta key comes from a Modal Secret.
+
+```bash
+.venv/bin/pip install modal
+.venv/bin/modal setup                                   # once: log in to Modal in the browser
+.venv/bin/modal secret create ride-off-meta META_API_KEY="$(sed -n 's/^META_API_KEY=//p' .env)"   # once; the key is never printed
+.venv/bin/modal deploy deploy/modal_app.py              # prints the https URL
+```
+
+Guards for a public link (`app/limits.py`), checked before any request that calls a Meta model:
+
+- **Daily spend cap**: every model call writes its cost to the usage log (`agents/meta.py` prices tokens, images and audio at Meta's list prices). Once today's total reaches `APP_DAILY_BUDGET` (default $5), model requests return a plain message until tomorrow; everything already on screen keeps working.
+- **Request limits**: 30 model requests per visitor and 90 per network address in any 10 minutes (`APP_VISITOR_LIMIT`, `APP_ADDRESS_LIMIT`). Explanations are cached, and a receipt photo that was already read isn't read again.
+- **Size limits**: photos under 15 MB, voice notes under a minute.
+- **Clean-up**: visitors idle for 2 days are removed (`APP_KEEP_DAYS`), and at most 500 are kept (`APP_MAX_VISITORS`).
+
+After judging, set `MIN_CONTAINERS = 0` in `deploy/modal_app.py` and deploy again, or run `modal app stop ride-off`.
 
 ## Demo data
 
