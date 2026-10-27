@@ -42,7 +42,7 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 
 A cloud sits in the middle of the screen with bubbles around it: profit, items to review, Turo, rides, receipts and the tire. Hold the cloud and talk to log cash you spent or ask about your month; tap a bubble to open it. The browser records 16 kHz WAV, Muse Voice Transcribe turns it into words, and Muse Spark either books a cash entry or answers from the books. Every number on screen is computed in code (`app/books.py`); the model may only use those numbers when it answers. The review bubble opens one card at a time with the evidence (the receipt photo or the voice note), Muse Spark's suggestion, and Approve, Change or Explain. You can also say a ride rule out loud ("what if I skipped pickups over three miles?"): Muse Spark turns it into a rule and the app replays it on the month.
 
-The microphone and camera need `localhost` or https. The app pretends today is Oct 31, 2026 (`APP_TODAY`), so the synthetic month reads as almost closed. Each browser gets its own copy of the month (a cookie holds a random visitor id; state lives in `data/app/visitors/<id>/`), so several people can use it at once without seeing each other's answers. Settings has a reset that clears only yours. The first visit shows a notice that the data is made up and that nothing real should be uploaded or said.
+The microphone and camera need `localhost` or https. The app pretends today is Oct 31, 2026 (`APP_TODAY`), so the synthetic month reads as almost closed. Each browser gets its own copy of the month (a cookie holds a random visitor id; state lives in `data/app/visitors/<id>/`), so several people can use it at once without seeing each other's answers. Settings has a reset that clears only yours. The first visit shows a notice that the data is made up and that nothing real should be uploaded or said. On a laptop (960 px and wider) a menu sits on the left, whatever you open slides in on the right while the clouds stay in view, the typing bar is always open, and holding Space talks; the menu hides with the button at the top left.
 
 `.env` and `data/` are git-ignored. Real financial data never goes in this repo; the demo uses synthetic data only.
 
@@ -99,6 +99,16 @@ Each export is recognized by its columns, not its file name, and turned into one
 `agents/segment.py` handles a whole pile in one photo. SAM 3.1 is asked for "receipt" and for "white paper" (on the demo photo, "receipt" alone missed one slip), and the two sets of boxes are merged in code: low-confidence boxes, near-duplicates and a box that wraps several slips are dropped, and the rest are put in reading order. Each box is cropped with a small margin, every crop is read by Muse Spark at the same time with the single-receipt prompt, and each reading goes through the same checks. One slip that can't be read doesn't stop the others. In the phone app the month starts with no receipts captured: tap **Snap receipts**, then take a photo or use the sample one. The boxes appear as SAM finds them (about 3 seconds), then fill in with amounts and matches as Muse Spark reads them (about 8 seconds). Personal-looking receipts join the review queue. Set `APP_RECEIPTS=preloaded` to start with the five receipts already read instead.
 
 `agents/voice.py` sends each note to Muse Voice Transcribe, then asks Muse Spark for one cash expense: the date ("yesterday" is worked out from the day the note was recorded), amount, payee, business line and Schedule C line. Speech recognition often drops the decimal point in spoken prices ("nine ninety nine" comes back as "999"), so the parser books the plausible reading and records the assumption it made, and asks the driver only when both readings are plausible. Personal spending is left out of the books.
+
+## How the reports work
+
+`app/reports.py` builds three reports from the same booked amounts as the profit on the home screen, so they always agree. No model is called.
+
+- **Profit and loss** by business line: Uber and Lyft are rideshare, Turo is Turo, and costs that serve both (phone, software, business insurance, bank fees) stay in a Shared column rather than being split by a guess. Loan payments, transfers and personal spending are listed but kept out of profit.
+- **Schedule C draft** for the month: Part I, Part II on the lines Muse Spark gave each merchant, lines 28 to 31, and Part IV miles from the mileage log, with the standard-rate comparison for the rideshare car.
+- **Mileage log**: every drive of the rideshare car with its odometer readings, places and purpose (rider on board, driving to a pickup, between rides on the apps, commuting, personal).
+
+Each opens in the app with a draft or final status and downloads as CSV (`/api/reports/{name}/download`). Spending the categorizer labels personal stays out of profit unless the driver answers a receipt card "business".
 
 ## How the close agent works
 
