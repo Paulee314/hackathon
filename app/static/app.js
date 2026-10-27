@@ -8,6 +8,8 @@ let review = { items: [] };
 let lastFocus = null;
 let busy = false;
 let suggestionIndex = 0;
+// Wide screens show what you open in a side panel next to the clouds instead of a sheet over them.
+const wide = window.matchMedia('(min-width: 960px)');
 
 /* ---------- small helpers ---------- */
 function el(tag, attrs, ...kids) {
@@ -131,8 +133,13 @@ function renderHome(h) {
   if (s.length) $('suggest').textContent = `Try saying “${s[suggestionIndex % s.length]}”`;
 }
 
+function markOpen(node) {
+  document.querySelectorAll('.bubble.open').forEach((b) => { if (b !== node) b.classList.remove('open'); });
+  if (node) node.classList.add('open');
+}
 function openBubble(id, node) {
-  node.classList.add('leaving');
+  if (wide.matches) markOpen(node);   // the panel opens beside it, so it stays, lit
+  else node.classList.add('leaving');
   if (id === 'review') openReview();
   else if (id === 'receipts') openReceipts();
   else openDetail(id);
@@ -144,7 +151,8 @@ function openSheet(nodes) {
   const body = $('sheetBody');
   body.replaceChildren(...nodes.filter(Boolean));
   body.scrollTop = 0;
-  $('scrim').hidden = false;
+  $('scrim').hidden = wide.matches;
+  document.body.classList.add('panel-open');
   const s = $('sheet');
   s.classList.remove('closing');
   s.hidden = false;
@@ -154,6 +162,8 @@ function closeSheet() {
   const s = $('sheet');
   if (s.hidden) return;
   s.classList.add('closing');
+  document.body.classList.remove('panel-open');
+  markOpen(null);
   setTimeout(() => {
     s.hidden = true;
     $('scrim').hidden = true;
@@ -161,6 +171,13 @@ function closeSheet() {
     document.querySelectorAll('.bubble.leaving').forEach((b) => b.classList.remove('leaving'));
     if (lastFocus && document.contains(lastFocus)) lastFocus.focus({ preventScroll: true });
   }, 220);
+}
+// Ask something from inside a sheet. On a phone the sheet gets out of the way first; on a wide
+// screen the panel stays put and the answer replaces it.
+function askFromSheet(text) {
+  if (wide.matches) { ask(text, false); return; }
+  closeSheet();
+  setTimeout(() => ask(text, false), 240);
 }
 function sheetError(msg) {
   openSheet([title('That didn’t load'), el('p', { text: msg }),
@@ -190,7 +207,7 @@ async function openDetail(id) {
     if (i === 1 && d.rules && d.rules.length) {
       nodes.push(el('div', { class: 'section-title' }, el('span', { text: 'Ride rules, replayed on this month' }), el('span', { text: 'vs what you did' })));
       nodes.push(el('div', { class: 'rule-list' }, d.rules.map((r) =>
-        el('button', { type: 'button', class: 'rule-row', onclick: () => { closeSheet(); setTimeout(() => ask(`What if I used this rule: ${r.label}?`, false), 240); } },
+        el('button', { type: 'button', class: 'rule-row', onclick: () => askFromSheet(`What if I used this rule: ${r.label}?`) },
           el('span', { text: r.label }), el('b', { class: r.value.startsWith('+') ? 'up' : 'down', text: r.value })))));
       nodes.push(el('p', { class: 'muted', text: 'Tap a rule to see what it would have done, or say your own: “What if I skip pickups over 4 miles?”' }));
     }
@@ -199,7 +216,7 @@ async function openDetail(id) {
   if (ASK_ABOUT[id]) {
     nodes.push(el('div', { class: 'actions' }, el('button', {
       type: 'button', class: 'btn', text: `Ask: ${ASK_ABOUT[id]}`,
-      onclick: () => { closeSheet(); ask(ASK_ABOUT[id], false); },
+      onclick: () => askFromSheet(ASK_ABOUT[id]),
     })));
   }
   openSheet(nodes);
@@ -349,11 +366,15 @@ async function openReceipts() {
   openSheet(r.pile && r.pile.read ? pileNodes(r.pile, 'done') : startNodes(r.sample));
 }
 function startNodes(sample) {
+  // On a laptop there's rarely a pile of receipts to hand, so the sample photo leads there.
+  const sampleFirst = wide.matches && sample;
+  const own = el('button', { type: 'button', class: sampleFirst ? 'btn' : 'btn primary',
+    text: wide.matches ? 'Upload a photo' : 'Take a photo', onclick: () => photoInput.click() });
+  const demo = sample ? el('button', { type: 'button', class: sampleFirst ? 'btn primary' : 'btn',
+    text: 'Use the sample photo', onclick: () => snapPile(null) }) : null;
   return [title('Snap your receipts'),
     el('p', { text: 'Lay the month’s receipts out and take one photo. SAM 3.1 finds each receipt, Muse Spark reads it, and your books check it against your cards.' }),
-    el('div', { class: 'actions' },
-      el('button', { type: 'button', class: 'btn primary', text: 'Take a photo', onclick: () => photoInput.click() }),
-      sample ? el('button', { type: 'button', class: 'btn', text: 'Use the sample photo', onclick: () => snapPile(null) }) : null)];
+    el('div', { class: 'actions' }, sampleFirst ? [demo, own] : [own, demo])];
 }
 function pileFigure(pile, src, stage) {
   const fig = el('div', { class: `pile ${stage}` }, el('img', { src: src || pile.photo, alt: 'Your receipts photo' }));
@@ -389,9 +410,12 @@ function pileNodes(pile, stage, src) {
     el('span', { class: 'muted', text: `Found by SAM 3.1 in ${pile.seconds.find}s, read by Muse Spark in ${pile.seconds.read}s, matched to your cards in code.` })];
   nodes.push(el('div', { class: 'actions' },
     pile.flagged
-      ? el('button', { type: 'button', class: 'btn primary', text: 'Review them', onclick: () => openReview() })
+      ? el('button', { type: 'button', class: 'btn primary', text: 'Review them', onclick: () => {
+        if (wide.matches) markOpen(document.querySelector('.bubble[data-id="review"]'));
+        openReview();
+      } })
       : el('button', { type: 'button', class: 'btn primary', text: 'Done', onclick: closeSheet }),
-    el('button', { type: 'button', class: 'btn', text: 'Take a new photo', onclick: () => photoInput.click() })));
+    el('button', { type: 'button', class: 'btn', text: wide.matches ? 'Upload a new photo' : 'Take a new photo', onclick: () => photoInput.click() })));
   return nodes;
 }
 let pileBusy = false;
@@ -454,6 +478,7 @@ async function ask(text, spoken) {
 }
 
 function showResult(heard, res, spoken) {
+  markOpen(null);
   const nodes = [
     el('div', { class: 'you-said', text: heard }),
     el('span', { class: 'muted', style: 'align-self:flex-end;margin-top:-10px', text: spoken ? 'Heard by Muse Voice Transcribe' : 'You asked' }),
@@ -468,7 +493,7 @@ function showResult(heard, res, spoken) {
       el('button', { type: 'button', class: 'btn primary', text: 'Done', onclick: closeSheet }))));
   } else if (res.type === 'question') {
     nodes.push(title(res.text), el('p', { text: 'Hold the cloud and answer, or type it.' }),
-      el('div', { class: 'actions' }, el('button', { type: 'button', class: 'btn primary', text: 'Type the answer', onclick: () => { closeSheet(); openTypebar(); } })));
+      el('div', { class: 'actions' }, el('button', { type: 'button', class: 'btn primary', text: 'Type the answer', onclick: () => { if (!wide.matches) closeSheet(); openTypebar(); } })));
   } else if (res.type === 'rule') {
     nodes.push(el('span', { class: 'pill', text: res.verdict }), title(res.headline),
       el('div', { class: 'big', text: res.amount }), el('p', { text: res.text }), rows(res.rows),
@@ -480,7 +505,7 @@ function showResult(heard, res, spoken) {
     nodes.push(title(res.headline || 'Here’s what I found', 'big'), el('p', { text: res.text }));
     if (res.followups && res.followups.length) {
       nodes.push(el('div', { class: 'followups' }, res.followups.map((f) =>
-        el('button', { type: 'button', text: f, onclick: () => { closeSheet(); setTimeout(() => ask(f, false), 240); } }))));
+        el('button', { type: 'button', text: f, onclick: () => askFromSheet(f) }))));
     }
     nodes.push(el('span', { class: 'muted', text: 'Muse Spark answered from your books' }));
   }
@@ -656,20 +681,51 @@ cloud.addEventListener('keydown', (e) => {
   if (e.key !== 'Enter' && e.key !== ' ') return;
   e.preventDefault();
   if (e.repeat) return;
+  if (e.key === ' ') { if (!session) { holding = true; startListening(); } return; }   // Space: hold to talk
   if (session) finishListening(false);
   else startListening();
 });
+cloud.addEventListener('keyup', (e) => { if (e.key === ' ') { e.preventDefault(); release(); } });
+
+// On a wide screen, hold Space anywhere on the clouds' side to talk (not while typing or in the panel).
+function spaceTalks(e) {
+  if (!wide.matches || e.key !== ' ' || e.target === cloud) return false;
+  const a = document.activeElement;
+  if (!a || a === document.body) return true;
+  return !a.closest('input, textarea, select, button, a, [contenteditable], .sheet, .viewer');
+}
+document.addEventListener('keydown', (e) => {
+  if (!spaceTalks(e)) return;
+  e.preventDefault();
+  if (e.repeat || session) return;
+  holding = true;
+  startListening();
+});
+document.addEventListener('keyup', (e) => { if (spaceTalks(e) || (e.key === ' ' && holding && e.target !== cloud)) { e.preventDefault(); release(); } });
 
 /* ---------- typing ---------- */
 function openTypebar() {
   $('typebar').hidden = false;
-  document.querySelector('.dock').hidden = true;
+  document.querySelector('.dock').hidden = !wide.matches;
   $('typeInput').focus();
 }
 function closeTypebar() {
+  if (wide.matches) { $('typeInput').blur(); return; }   // always there on a wide screen
   $('typebar').hidden = true;
   document.querySelector('.dock').hidden = false;
 }
+function layout() {
+  const w = wide.matches;
+  $('typebar').hidden = !w;
+  document.querySelector('.dock').hidden = false;
+  $('typeInput').placeholder = w ? 'Ask about your month, or log cash you spent' : 'Ask, or log cash you spent';
+  $('cloudHint').textContent = w ? 'Hold the cloud, or hold Space, to talk' : 'Hold the cloud to talk';
+  $('sheet').setAttribute('aria-modal', w ? 'false' : 'true');
+  if (!$('sheet').hidden) $('scrim').hidden = w;
+  document.querySelectorAll('.bubble.leaving, .bubble.open').forEach((b) => b.classList.remove('leaving', 'open'));
+}
+wide.addEventListener('change', layout);
+layout();
 $('typeBtn').addEventListener('click', openTypebar);
 $('typebar').addEventListener('submit', (e) => {
   e.preventDefault();
@@ -687,6 +743,7 @@ $('suggest').addEventListener('click', () => {
 
 /* ---------- settings ---------- */
 $('settingsBtn').addEventListener('click', () => {
+  markOpen(null);
   const resetBtn = el('button', { type: 'button', class: 'btn', text: 'Reset the demo' });
   let armed = false;
   resetBtn.addEventListener('click', async () => {

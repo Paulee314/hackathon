@@ -11,6 +11,7 @@ app/state.py. Requests that call a Meta model pass through the guards in app/lim
 """
 from __future__ import annotations
 
+import hashlib
 import io
 import os
 import shutil
@@ -24,7 +25,7 @@ from pathlib import Path
 from typing import Dict, Optional
 
 from fastapi import Body, FastAPI, HTTPException, Request
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.concurrency import run_in_threadpool
 
@@ -126,7 +127,12 @@ def _model_error(e: Exception):
 
 @app.get("/")
 def index():
-    return FileResponse(STATIC / "index.html", headers={"Cache-Control": "no-store"})
+    """The page, with the stylesheet and script stamped by content so a browser never runs an old copy."""
+    html = (STATIC / "index.html").read_text()
+    for name in ("app.css", "app.js"):
+        stamp = hashlib.sha1((STATIC / name).read_bytes()).hexdigest()[:10]
+        html = html.replace(f'/static/{name}"', f'/static/{name}?v={stamp}"')
+    return HTMLResponse(html, headers={"Cache-Control": "no-store"})
 
 
 @app.get("/api/home")
