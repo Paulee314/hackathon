@@ -291,6 +291,8 @@ class Books:
             for h in it["holds"]:
                 if kind == "receipt" and choice == "personal":
                     override[h] = ("other", "Personal, kept out")
+                elif kind == "receipt" and choice == "business":
+                    override[h] = ("expense", "")   # counts, even if the merchant usually looks personal
                 elif kind == "possible_duplicate" and choice == "duplicate":
                     override[h] = ("other", "Duplicate charges, disputed")
                 elif kind == "deposit_without_payout":
@@ -312,29 +314,38 @@ class Books:
         return out
 
     # ---- totals -------------------------------------------------------------------------
-    def totals(self) -> Dict:
-        income, expense, other = OrderedDict(), OrderedDict(), OrderedDict()
+    def booked(self):
+        """Every amount the books count, after the driver's answers, as (role, group, amount, txn):
+        role is income, expense, other (kept out of profit) or held (waiting on review); amount is
+        positive; txn is None for an amount an answer added (a Lyft shortfall booked as a fee)."""
         held, override, extras = self._effects()
-        in_review = ZERO
         for t in self.all_txns():
             role, group = classify(t)
             if t.txn_id in held:
-                in_review += abs(t.amount)
+                yield "held", group, abs(t.amount), t
                 continue
             if t.txn_id in override:
-                role, group = override[t.txn_id]
-                if role == "other":
-                    other[group] = other.get(group, ZERO) + abs(t.amount)
-                    continue
+                role, group = override[t.txn_id][0], override[t.txn_id][1] or group
+            elif role == "expense" and (self.categories.get(merchant_key(t)) or {}).get("treatment") == "personal":
+                role, group = "other", "Personal, kept out"   # Muse Spark labelled the merchant personal
             if role == "income":
-                income[group] = income.get(group, ZERO) + t.amount
+                yield "income", group, t.amount, t
             elif role == "expense":
-                expense[group] = expense.get(group, ZERO) - t.amount
-            elif role in ("loan", "owner", "unexplained"):
-                other[group] = other.get(group, ZERO) + abs(t.amount)
+                yield "expense", group, -t.amount, t
+            elif role in ("other", "loan", "owner", "unexplained"):
+                yield "other", group, abs(t.amount), t
         for role, group, amount in extras:
-            bucket = expense if role == "expense" else other
-            bucket[group] = bucket.get(group, ZERO) + amount
+            yield ("expense" if role == "expense" else "other"), group, amount, None
+
+    def totals(self) -> Dict:
+        income, expense, other = OrderedDict(), OrderedDict(), OrderedDict()
+        in_review = ZERO
+        for role, group, amount, _ in self.booked():
+            if role == "held":
+                in_review += amount
+            else:
+                bucket = {"income": income, "expense": expense}.get(role, other)
+                bucket[group] = bucket.get(group, ZERO) + amount
         earned = sum(income.values(), ZERO)
         spent = sum(expense.values(), ZERO)
         expense = OrderedDict(sorted(expense.items(), key=lambda kv: -kv[1]))
@@ -465,28 +476,25 @@ class Books:
         """Spending rolled up by Schedule C line, from Muse Spark's labels, actual-expense method."""
         if not self.categories:
             return None
-        held, override, extras = self._effects()
+        # The same amounts as the profit (booked), so the two always agree; each is placed on the
+        # line Muse Spark gave its merchant.
         lines, vehicle = {}, ZERO
-        for t in self.all_txns():
-            if t.amount >= 0 or t.kind in ("earning", "payout") or t.txn_id in held:
+        for role, group, amount, t in self.booked():
+            if role != "expense":
                 continue
-            if t.txn_id in override and override[t.txn_id][0] != "expense":
-                continue
-            cat = self.categories.get(merchant_key(t))
-            if cat:
-                if cat["treatment"] not in ("expense", "vehicle"):
-                    continue
-                line, is_vehicle = cat["schedule_c_line"] or "27a Other expenses", cat["treatment"] == "vehicle"
+            cat = self.categories.get(merchant_key(t)) if t is not None else None
+            is_vehicle = False
+            if t is None or group == "Platform fees":
+                line = "10 Commissions and fees"
+            elif cat and cat.get("schedule_c_line"):
+                line, is_vehicle = cat["schedule_c_line"], cat["treatment"] == "vehicle"
             elif t.kind == "cash" and t.category:
-                line, is_vehicle = t.category, False
+                line = t.category
             else:
-                continue
-            lines[line] = lines.get(line, ZERO) - t.amount
+                line = "27a Other expenses"
+            lines[line] = lines.get(line, ZERO) + amount
             if is_vehicle:
-                vehicle -= t.amount
-        for role, group, amount in extras:
-            if role == "expense":
-                lines["10 Commissions and fees"] = lines.get("10 Commissions and fees", ZERO) + amount
+                vehicle += amount
 
         def order(line):
             m = re.match(r"(\d+)([a-z]?)", line)

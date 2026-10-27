@@ -132,24 +132,26 @@ def offer_estimates(month_dir: Path, txns=None) -> Tuple[List[Offer], Dict[str, 
     return offers, est, model
 
 
-def online_hours(offers: List[Offer], est: Dict[str, Dict]) -> float:
-    """Hours on the road in the real month: offers and rides merged into stretches, a gap over 30 minutes is off."""
+def online_stretches(offers: List[Offer], est: Dict[str, Dict]) -> List[Tuple[datetime, datetime]]:
+    """When the driver was on the apps in the real month: offers and rides merged into stretches, a gap
+    over 30 minutes is off."""
     spans = []
     for o in offers:
         e = est[o.id]
         spans.append((o.at, e["end"]) if e.get("end") else (o.at, o.at))
     spans.sort()
-    total, cur_start, cur_end = timedelta(0), None, None
+    out: List[Tuple[datetime, datetime]] = []
     for a, b in spans:
-        if cur_end is not None and a - cur_end <= OFF_AFTER:
-            cur_end = max(cur_end, b)
-            continue
-        if cur_end is not None:
-            total += cur_end - cur_start
-        cur_start, cur_end = a, b
-    if cur_end is not None:
-        total += cur_end - cur_start
-    return total.total_seconds() / 3600
+        if out and a - out[-1][1] <= OFF_AFTER:
+            out[-1] = (out[-1][0], max(out[-1][1], b))
+        else:
+            out.append((a, b))
+    return out
+
+
+def online_hours(offers: List[Offer], est: Dict[str, Dict]) -> float:
+    """Hours on the road in the real month (see online_stretches)."""
+    return sum(((b - a) for a, b in online_stretches(offers, est)), timedelta(0)).total_seconds() / 3600
 
 
 def replay(rule: Rule, offers: List[Offer], est: Dict[str, Dict], hours: float) -> Dict:

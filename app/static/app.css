@@ -285,6 +285,25 @@ button:focus-visible, input:focus-visible, a:focus-visible { outline: 3px solid 
 @keyframes slideIn { from { transform: translateX(40px); opacity: 0; } to { transform: none; opacity: 1; } }
 .card-in { animation: slideIn 0.35s cubic-bezier(.2,.9,.3,1.1) both; }
 
+/* ---- reports ---- */
+.grid { background: var(--sky-mid); border-radius: 22px; overflow-x: auto; }
+.grid table { width: 100%; border-collapse: collapse; font-size: 13px; table-layout: fixed; }
+.grid thead th:first-child { width: 33%; }
+.grid th, .grid td { padding: 9px 6px; text-align: right; white-space: nowrap; }
+.grid thead th { font-size: 11.5px; font-weight: 700; color: var(--ink-soft); padding-bottom: 6px; }
+.grid th:first-child { text-align: left; padding-left: 14px; font-weight: 600; white-space: normal; }
+.grid td:last-child, .grid thead th:last-child { padding-right: 14px; }
+.grid tbody tr { border-top: 1.5px solid var(--white); }
+.grid tr.strong th, .grid tr.strong td { font-weight: 700; background: var(--blush-pale); }
+.pill.final { background: #DDF3E8; }
+.report-links { display: flex; flex-direction: column; gap: 8px; }
+.report-links b { font-weight: 600; color: var(--ink-soft); }
+a.link-btn { display: flex; align-items: center; justify-content: center; text-decoration: none; color: var(--ink); }
+
+/* ---- the menu on the left (wide screens only) ---- */
+.sidebar, .nav-toggle { display: none; }
+body.preload .sidebar, body.preload .app { transition: none !important; }   /* no slide on first paint */
+
 /* ---- hover: the small clouds lift and glow (mouse and trackpad only) ---- */
 .bubble::before {
   content: ''; position: absolute; inset: -18% -12%; z-index: -2; border-radius: 50%; pointer-events: none;
@@ -316,12 +335,43 @@ button:focus-visible, input:focus-visible, a:focus-visible { outline: 3px solid 
 
 /* ---- wide screens: clouds on the left, whatever you open in a panel on the right ---- */
 @media (min-width: 960px) {
-  :root { --panel: min(460px, 38vw); }
+  :root { --panel: min(460px, 38vw); --nav: 236px; }
+  body { --left: 40px; --right: 40px; }
+  body:not(.nav-closed) { --left: calc(var(--nav) + 48px); }
+  body.panel-open { --right: calc(var(--panel) + 64px); }
   .app {
-    max-width: none; margin: 0; align-items: center; padding: 28px 40px;
-    transition: padding-right 0.45s cubic-bezier(.2,.9,.3,1);
+    max-width: none; margin: 0; align-items: center; padding: 28px var(--right) 28px var(--left);
+    transition: padding 0.45s cubic-bezier(.2,.9,.3,1);
+    container: app / inline-size;
   }
-  body.panel-open .app { padding-right: calc(var(--panel) + 64px); }
+
+  .nav-toggle { display: inline-flex; position: fixed; left: 26px; top: 26px; z-index: 12; background: rgba(255, 255, 255, 0.85); }
+  .sidebar {
+    display: flex; flex-direction: column; gap: 14px; position: fixed; left: 16px; top: 16px; bottom: 16px; width: var(--nav);
+    padding: 22px 14px 14px; z-index: 11; border-radius: 30px;
+    background: rgba(255, 255, 255, 0.78); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+    box-shadow: 0 14px 40px rgba(110, 155, 224, 0.22);
+    transition: transform 0.4s cubic-bezier(.2,.9,.3,1), opacity 0.3s ease;
+    overflow-y: auto;
+  }
+  body.nav-closed .sidebar { transform: translateX(calc(-100% - 24px)); opacity: 0; pointer-events: none; }
+  .brand { display: flex; align-items: center; gap: 8px; padding-left: 52px; min-height: 34px; font-family: var(--display); font-size: 21px; font-weight: 600; }
+  .side-who { display: flex; flex-direction: column; gap: 2px; padding: 4px 10px 8px; font-size: 13px; color: var(--ink-soft); }
+  .side-who b { color: var(--ink); font-size: 14px; }
+  .demo-tag { align-self: flex-start; margin-top: 6px; border-radius: 999px; padding: 3px 10px; font-size: 12px; font-weight: 700; background: var(--blush-pale); color: var(--ink); }
+  .side-nav { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+  .side-label { padding: 14px 12px 4px; font-size: 12px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--ink-soft); }
+  .sidebar [data-nav] {
+    width: 100%; display: flex; align-items: center; gap: 12px; min-height: 42px; padding: 0 12px; border: none; border-radius: 14px;
+    background: transparent; font-size: 15px; font-weight: 600; text-align: left; transition: background 0.2s ease;
+  }
+  .sidebar [data-nav] svg { width: 20px; height: 20px; flex: 0 0 20px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+  .sidebar [data-nav]:hover { background: rgba(255, 227, 241, 0.75); }
+  .sidebar [data-nav][aria-current="page"] { background: var(--white); box-shadow: 0 4px 12px rgba(110, 155, 224, 0.18); }
+  .sidebar [data-nav][aria-current="page"] svg { stroke: var(--bubblegum-deep); }
+  .sidebar .badge { margin-left: auto; min-width: 24px; height: 22px; padding: 0 7px; border-radius: 999px; background: var(--bubblegum); font-size: 12px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; }
+  .side-foot { margin-top: auto; padding-top: 8px; border-top: 1.5px solid rgba(185, 213, 245, 0.6); }
+  body:not(.nav-closed) #settingsBtn { visibility: hidden; }   /* Settings is in the menu */
   /* the headline already says the month, so the top row folds into it: settings sits beside the headline */
   .top, .greet { width: min(600px, 100%); }
   .top { height: 0; align-items: flex-start; position: relative; z-index: 3; }
@@ -330,7 +380,7 @@ button:focus-visible, input:focus-visible, a:focus-visible { outline: 3px solid 
   .greet p { font-size: 16px; }
   .stage { width: max(340px, min(600px, calc((100dvh - 200px) * 0.696))); }
   .bubble .l, .bubble[data-id="rides"] .l { white-space: nowrap; padding: 0 4%; }
-  body.panel-open .toast { left: calc((100vw - var(--panel) - 24px) / 2); }
+  .toast { left: calc((var(--left) + 100vw - var(--right)) / 2); }
   .composer { flex-direction: row; align-items: center; gap: 10px; width: min(680px, 100%); }
   .composer .typebar { order: -1; flex: 1 1 auto; }
   .composer .typebar[hidden] { display: flex !important; }
@@ -347,8 +397,11 @@ button:focus-visible, input:focus-visible, a:focus-visible { outline: 3px solid 
   .sheet.closing { animation: panelOut 0.22s ease-in both; }
   .sheet-body { padding-bottom: 24px; }
 }
+@container app (max-width: 640px) {
+  .dock { display: none !important; }   /* not enough room for both: the typing bar gets the row */
+}
 @media (min-width: 960px) and (max-width: 1199px) {
-  body.panel-open .dock { display: none !important; }   /* not enough room beside the panel: the typing bar gets the row */
+  body:not(.nav-closed) { --left: 40px; }   /* narrower screens: the menu floats over the clouds instead of pushing them */
 }
 @keyframes panelIn { from { transform: translateX(48px); opacity: 0; } to { transform: none; opacity: 1; } }
 @keyframes panelOut { to { transform: translateX(48px); opacity: 0; } }

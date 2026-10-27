@@ -106,7 +106,7 @@ function renderHome(h) {
     let node = existing.get(b.id);
     if (!node) {
       node = el('button', { type: 'button', class: `bubble bob-${'abc'[i % 3]}`, 'data-id': b.id });
-      node.addEventListener('click', () => openBubble(b.id, node));
+      node.addEventListener('click', () => openBubble(b.id));
       wrap.append(node);
     }
     existing.delete(b.id);
@@ -131,19 +131,29 @@ function renderHome(h) {
   existing.forEach((node) => node.remove());
   const s = h.suggestions || [];
   if (s.length) $('suggest').textContent = `Try saying “${s[suggestionIndex % s.length]}”`;
+  const badge = $('navReview');
+  badge.textContent = h.review.count ? String(h.review.count) : '';
+  badge.hidden = !h.review.count;
+  $('navMonth').textContent = new Date(h.today + 'T12:00:00').toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
 }
 
 function markOpen(node) {
   document.querySelectorAll('.bubble.open').forEach((b) => { if (b !== node) b.classList.remove('open'); });
   if (node) node.classList.add('open');
+  setNav(node ? node.dataset.id : null);
 }
-function openBubble(id, node) {
+// Open one of the month's views: from its cloud, or from the menu on a wide screen.
+function openView(id) {
+  const node = document.querySelector(`.bubble[data-id="${id}"]`);
   if (wide.matches) markOpen(node);   // the panel opens beside it, so it stays, lit
-  else node.classList.add('leaving');
+  else if (node) node.classList.add('leaving');
+  setNav(id);
   if (id === 'review') openReview();
   else if (id === 'receipts') openReceipts();
+  else if (id.startsWith('report:')) openReport(id.slice(7));
   else openDetail(id);
 }
+function openBubble(id) { openView(id); }
 
 /* ---------- sheets ---------- */
 function openSheet(nodes) {
@@ -164,6 +174,7 @@ function closeSheet() {
   s.classList.add('closing');
   document.body.classList.remove('panel-open');
   markOpen(null);
+  setNav('home');
   setTimeout(() => {
     s.hidden = true;
     $('scrim').hidden = true;
@@ -213,12 +224,46 @@ async function openDetail(id) {
     }
   });
   if (d.note) nodes.push(el('p', { class: 'muted', text: d.note }));
+  if (id === 'profit') {
+    nodes.push(el('div', { class: 'section-title' }, el('span', { text: 'Reports' }), el('span', { text: '' })));
+    nodes.push(el('div', { class: 'report-links' }, [['pnl', 'Profit and loss'], ['schedule_c', 'Schedule C draft'], ['mileage', 'Mileage log']]
+      .map(([r, label]) => el('button', { type: 'button', class: 'rule-row', onclick: () => { setNav(`report:${r}`); openReport(r); } },
+        el('span', { text: label }), el('b', { text: 'Open' })))));
+  }
   if (ASK_ABOUT[id]) {
     nodes.push(el('div', { class: 'actions' }, el('button', {
       type: 'button', class: 'btn', text: `Ask: ${ASK_ABOUT[id]}`,
       onclick: () => askFromSheet(ASK_ABOUT[id]),
     })));
   }
+  openSheet(nodes);
+}
+
+/* ---------- reports: P&L, Schedule C draft, mileage log (all computed in code) ---------- */
+function grid(columns, list) {
+  const strong = (label) => /^(Total|Net|28 |31 )/.test(label);
+  return el('div', { class: 'grid' }, el('table', {},
+    el('thead', {}, el('tr', {}, columns.map((c) => el('th', { scope: 'col', text: c })))),
+    el('tbody', {}, list.map((r) => el('tr', { class: strong(r[0]) ? 'strong' : null },
+      r.map((v, i) => (i === 0 ? el('th', { scope: 'row', text: v }) : el('td', { text: v }))))))));
+}
+async function openReport(name) {
+  let d;
+  try { d = await api(`/api/reports/${encodeURIComponent(name)}`); } catch (e) { sheetError(e.message); return; }
+  const nodes = [];
+  if (d.eyebrow) nodes.push(el('span', { class: 'eyebrow', text: d.eyebrow }));
+  nodes.push(title(d.title));
+  if (d.value) nodes.push(el('div', { class: 'big', text: d.value }));
+  if (d.sub) nodes.push(el('p', { class: 'muted', text: d.sub }));
+  if (d.status) nodes.push(el('span', { class: 'pill' + (d.status.final ? ' final' : ''), text: d.status.text }));
+  (d.sections || []).forEach((sec) => {
+    nodes.push(el('div', { class: 'section-title' }, el('span', { text: sec.title }), el('span', { text: sec.total || '' })));
+    nodes.push(sec.columns ? grid(sec.columns, sec.rows) : rows(sec.rows));
+  });
+  if (d.note) nodes.push(el('p', { class: 'muted', text: d.note }));
+  nodes.push(el('div', { class: 'actions' },
+    el('a', { class: 'btn primary link-btn', href: `/api/reports/${encodeURIComponent(name)}/download`, download: '', text: 'Download as CSV' }),
+    el('span', { class: 'muted', style: 'text-align:center', text: 'Opens in Excel, Numbers or Google Sheets' })));
   openSheet(nodes);
 }
 
@@ -741,9 +786,45 @@ $('suggest').addEventListener('click', () => {
   if (s.length) ask(s[suggestionIndex % s.length], false);
 });
 
+/* ---------- the menu on the left (wide screens) ---------- */
+const NAV_KEY = 'rideoff-nav';
+function setNav(id) {
+  document.querySelectorAll('#sidebar [data-nav]').forEach((b) => {
+    if (b.dataset.nav === id) b.setAttribute('aria-current', 'page');
+    else b.removeAttribute('aria-current');
+  });
+}
+const navFloats = () => window.innerWidth < 1200;   // narrower than that, it opens over the clouds, only when asked
+function navWanted() {
+  if (navFloats()) return false;
+  try { const v = localStorage.getItem(NAV_KEY); if (v) return v === 'open'; } catch (_) { /* no storage */ }
+  return true;
+}
+function setNavOpen(open, remember) {
+  document.body.classList.toggle('nav-closed', !open);
+  $('navToggle').setAttribute('aria-expanded', String(open));
+  $('navToggle').setAttribute('aria-label', open ? 'Hide the menu' : 'Show the menu');
+  if (remember) { try { localStorage.setItem(NAV_KEY, open ? 'open' : 'closed'); } catch (_) { /* no storage */ } }
+}
+$('navToggle').addEventListener('click', () => setNavOpen(document.body.classList.contains('nav-closed'), !navFloats()));
+document.addEventListener('click', (e) => {   // a floating menu closes when you click past it
+  if (navFloats() && !document.body.classList.contains('nav-closed') && !e.target.closest('#sidebar, #navToggle')) setNavOpen(false, false);
+});
+document.querySelectorAll('#sidebar [data-nav]').forEach((b) => b.addEventListener('click', () => {
+  const id = b.dataset.nav;
+  if (navFloats()) setNavOpen(false, false);   // it floats over the clouds there, so it gets out of the way
+  if (id === 'home') closeSheet();
+  else if (id === 'settings') openSettings();
+  else openView(id);
+}));
+setNavOpen(navWanted(), false);
+requestAnimationFrame(() => requestAnimationFrame(() => document.body.classList.remove('preload')));
+
 /* ---------- settings ---------- */
-$('settingsBtn').addEventListener('click', () => {
+$('settingsBtn').addEventListener('click', () => openSettings());
+function openSettings() {
   markOpen(null);
+  setNav('settings');
   const resetBtn = el('button', { type: 'button', class: 'btn', text: 'Reset the demo' });
   let armed = false;
   resetBtn.addEventListener('click', async () => {
@@ -760,7 +841,7 @@ $('settingsBtn').addEventListener('click', () => {
     rows([['Muse Spark', 'Reads receipts, books cash, answers'], ['SAM 3.1', 'Finds each receipt in a photo'], ['Muse Voice Transcribe', 'Hears what you say'], ['Muse Image', 'Made the demo receipts']]),
     el('div', { class: 'actions' }, resetBtn),
   ]);
-});
+}
 
 /* ---------- wiring ---------- */
 $('sheetClose').addEventListener('click', closeSheet);

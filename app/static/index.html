@@ -10,7 +10,33 @@
 <link href="https://fonts.googleapis.com/css2?family=Fredoka:wdth,wght@75..125,300..700&family=Figtree:wght@400..700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/static/app.css">
 </head>
-<body>
+<body class="preload">
+<button type="button" class="icon-btn nav-toggle" id="navToggle" aria-controls="sidebar" aria-expanded="true" aria-label="Hide the menu">
+  <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true"><rect x="2.5" y="3.5" width="15" height="13" rx="3" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M7.5 3.8v12.4" stroke="currentColor" stroke-width="1.6"/></svg>
+</button>
+<nav class="sidebar" id="sidebar" aria-label="Menu">
+  <div class="brand">
+    <svg width="30" height="21" viewBox="0 0 240 160" aria-hidden="true"><g fill="#FF8CC6"><circle cx="78" cy="88" r="44"/><circle cx="126" cy="62" r="54"/><circle cx="176" cy="84" r="42"/><circle cx="44" cy="112" r="30"/><circle cx="204" cy="112" r="28"/><rect x="40" y="96" width="168" height="46" rx="23"/></g></svg>
+    <span>Ride-off</span>
+  </div>
+  <div class="side-who"><b>Bayou City Mobility</b><span id="navMonth">October 2026</span><span class="demo-tag">Made-up data</span></div>
+  <ul class="side-nav">
+    <li><button type="button" data-nav="home" aria-current="page"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 18h10.5a3.5 3.5 0 0 0 .4-7 5 5 0 0 0-9.6-1.4A4.2 4.2 0 0 0 7 18z"/></svg><span>Home</span></button></li>
+    <li><button type="button" data-nav="review"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 7.5l1.8 1.8 3.2-3.6M4.5 15.5l1.8 1.8 3.2-3.6M13 8h7M13 16h7"/></svg><span>Review</span><span class="badge" id="navReview" hidden></span></button></li>
+    <li><button type="button" data-nav="receipts"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3.5h12v17l-2-1.4-2 1.4-2-1.4-2 1.4-2-1.4-2 1.4zM9 8h6M9 11.5h6M9 15h3.5"/></svg><span>Receipts</span></button></li>
+    <li><button type="button" data-nav="profit"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19.5h16M7 16v-4M12 16V7M17 16v-6.5"/></svg><span>Profit</span></button></li>
+    <li><button type="button" data-nav="rides"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 15.5v-3l1.8-4.2A2 2 0 0 1 8.6 7h6.8a2 2 0 0 1 1.8 1.3L19 12.5v3a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1zM5 12.5h14M7.5 16.5V18M16.5 16.5V18"/></svg><span>Rides</span></button></li>
+    <li><button type="button" data-nav="turo"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8.5" cy="12" r="3.5"/><path d="M12 12h8M17 12v3M20 12v2.2"/></svg><span>Turo</span></button></li>
+    <li><button type="button" data-nav="tire"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3.2"/></svg><span>Car &amp; tires</span></button></li>
+    <li class="side-label">Reports</li>
+    <li><button type="button" data-nav="report:pnl"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3.5h7l4 4v13H7zM14 3.5v4h4M10 12h5M10 15.5h5"/></svg><span>Profit and loss</span></button></li>
+    <li><button type="button" data-nav="report:schedule_c"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3.5h7l4 4v13H7zM14 3.5v4h4M15 12.2a2.6 2.6 0 1 0 0 3.6"/></svg><span>Schedule C draft</span></button></li>
+    <li><button type="button" data-nav="report:mileage"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 18l4-12M20 18l-4-12M12 6v2M12 11v2M12 16v2"/></svg><span>Mileage log</span></button></li>
+  </ul>
+  <div class="side-foot">
+    <button type="button" data-nav="settings"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 3.5v2.4M12 18.1v2.4M3.5 12h2.4M18.1 12h2.4M6 6l1.7 1.7M16.3 16.3L18 18M6 18l1.7-1.7M16.3 7.7L18 6"/></svg><span>Settings</span></button>
+  </div>
+</nav>
 <main class="app" id="app">
   <header class="top">
     <span class="month" id="month">October</span>

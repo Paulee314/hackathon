@@ -25,13 +25,14 @@ from pathlib import Path
 from typing import Dict, Optional
 
 from fastapi import Body, FastAPI, HTTPException, Request
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse, Response
 from fastapi.staticfiles import StaticFiles
 from starlette.concurrency import run_in_threadpool
 
 from agents.meta import MetaAPIError, transcribe
 from agents.segment import cut_all, find_receipts, read_all
 from agents.voice import KEYWORDS
+from app import reports
 from app import state as st
 from app.assistant import explain, handle
 from app.books import Books
@@ -152,6 +153,24 @@ def _review(request: Request) -> Dict:
     items = books(request).review_items()
     items.sort(key=lambda i: i["decision"] is not None)
     return {"items": items}
+
+
+@app.get("/api/reports/{name}")
+def report(name: str, request: Request):
+    v = reports.view(books(request), name)
+    if v is None:
+        raise HTTPException(404, "There's no report by that name.")
+    return v
+
+
+@app.get("/api/reports/{name}/download")
+def report_download(name: str, request: Request):
+    out = reports.csv_rows(books(request), name)
+    if out is None:
+        raise HTTPException(404, "There's no report by that name.")
+    filename, rows = out
+    return Response(reports.to_csv(rows), media_type="text/csv; charset=utf-8",
+                    headers={"Content-Disposition": f'attachment; filename="{filename}"'})
 
 
 @app.get("/api/review")
