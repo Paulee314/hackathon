@@ -9,9 +9,10 @@ An agentic month-end close for gig-economy operators: rideshare drivers, Turo ho
 | Model | Job |
 | --- | --- |
 | Muse Spark 1.3 (Model API) | Reads receipt photos; turns voice-note transcripts into cash entries; reconciles payouts to deposits |
+| SAM 3.1 (Model API) | Finds every receipt in one photo of the month's pile, so each can be cropped and read |
 | Muse Voice Transcribe | Transcribes spoken notes about cash spending |
 | Muse Spark Open (open weights) | Categorizes transactions to Schedule C lines |
-| Muse Image | Generates the synthetic receipts in the public demo dataset |
+| Muse Image | Generates the synthetic receipts in the public demo dataset, and the car seat they are photographed on |
 
 ## Setup
 
@@ -21,6 +22,7 @@ python3 test_api.py                      # smoke test: text, image generation, r
 python3 synth/generate_october.py        # writes the synthetic month to samples/october
 python3 -m ingest.load samples/october   # normalizes every export into data/ledger/transactions.csv
 python3 -m agents.receipts               # Muse Spark reads the receipt photos and attaches each to its card charge
+python3 -m agents.segment samples/october/receipt_pile.jpg   # SAM 3.1 finds each receipt in one photo, Muse Spark reads every crop (needs Pillow)
 python3 -m agents.voice                  # Muse Voice Transcribe + Muse Spark turn voice notes into cash entries
 python3 -m agents.categorize             # Muse Spark maps every merchant to a Schedule C line
 python3 -m agents.close                  # tie-out checks, exceptions, and the score against the answer key
@@ -38,7 +40,7 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 .venv/bin/uvicorn app.server:app --port 8765     # then open http://localhost:8765
 ```
 
-A cloud sits in the middle of the screen with bubbles around it: profit, items to review, Turo, rides and the tire. Hold the cloud and talk to log cash you spent or ask about your month; tap a bubble to open it. The browser records 16 kHz WAV, Muse Voice Transcribe turns it into words, and Muse Spark either books a cash entry or answers from the books. Every number on screen is computed in code (`app/books.py`); the model may only use those numbers when it answers. The review bubble opens one card at a time with the evidence (the receipt photo or the voice note), Muse Spark's suggestion, and Approve, Change or Explain. You can also say a ride rule out loud ("what if I skipped pickups over three miles?"): Muse Spark turns it into a rule and the app replays it on the month.
+A cloud sits in the middle of the screen with bubbles around it: profit, items to review, Turo, rides, receipts and the tire. Hold the cloud and talk to log cash you spent or ask about your month; tap a bubble to open it. The browser records 16 kHz WAV, Muse Voice Transcribe turns it into words, and Muse Spark either books a cash entry or answers from the books. Every number on screen is computed in code (`app/books.py`); the model may only use those numbers when it answers. The review bubble opens one card at a time with the evidence (the receipt photo or the voice note), Muse Spark's suggestion, and Approve, Change or Explain. You can also say a ride rule out loud ("what if I skipped pickups over three miles?"): Muse Spark turns it into a rule and the app replays it on the month.
 
 The microphone needs `localhost` or https. The app pretends today is Oct 31, 2026 (`APP_TODAY`), so the synthetic month reads as almost closed. Settings has a reset that clears your answers and entries.
 
@@ -62,6 +64,7 @@ Every payout reaches the bank except six planted problems. `expected_exceptions.
 The month also has:
 
 - **`receipts/`**: five receipt photos made with Muse Image for fictional merchants, each adding up to a real card charge in the month. `receipts_truth.json` is what was printed.
+- **`receipt_pile.jpg`**: the same five receipts laid out on a car seat in one photo, the way a driver would snap them at month end. `synth/receipt_pile.py` builds it from the receipt photos and a Muse Image background.
 - **`voice/`**: four spoken notes about cash spending (16 kHz mono WAV, recorded with macOS `say`). One says "yesterday", one is personal. `voice_truth.json` is the answer key.
 - **`car/`**: Tessie-style drive and tire-pressure logs and every ride offer, accepted or declined, for one Tesla. The rear-left tire leaks slowly from Oct 12 until it is filled on Oct 26. `vehicle_profile.json` holds the cost assumptions (electricity rates, depreciation, tires).
 
@@ -72,6 +75,8 @@ Each export is recognized by its columns, not its file name, and turned into one
 ## How receipts and voice notes work
 
 `agents/receipts.py` asks Muse Spark to read each photo into JSON, then checks it without the model: the lines must add up to the subtotal, subtotal plus tax must equal the total, and there must be a card charge for exactly that amount within three days. A receipt that fails a check, or looks personal, is flagged for review.
+
+`agents/segment.py` handles a whole pile in one photo. SAM 3.1 is asked for "receipt" and for "white paper" (on the demo photo, "receipt" alone missed one slip), and the two sets of boxes are merged in code: low-confidence boxes, near-duplicates and a box that wraps several slips are dropped, and the rest are put in reading order. Each box is cropped with a small margin, every crop is read by Muse Spark at the same time with the single-receipt prompt, and each reading goes through the same checks. One slip that can't be read doesn't stop the others. In the phone app the month starts with no receipts captured: tap **Snap receipts**, then take a photo or use the sample one. The boxes appear as SAM finds them (about 3 seconds), then fill in with amounts and matches as Muse Spark reads them (about 8 seconds). Personal-looking receipts join the review queue. Set `APP_RECEIPTS=preloaded` to start with the five receipts already read instead.
 
 `agents/voice.py` sends each note to Muse Voice Transcribe, then asks Muse Spark for one cash expense: the date ("yesterday" is worked out from the day the note was recorded), amount, payee, business line and Schedule C line. Speech recognition often drops the decimal point in spoken prices ("nine ninety nine" comes back as "999"), so the parser books the plausible reading and records the assumption it made, and asks the driver only when both readings are plausible. Personal spending is left out of the books.
 

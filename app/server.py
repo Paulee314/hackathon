@@ -10,7 +10,9 @@ from __future__ import annotations
 
 import io
 import os
+import shutil
 import tempfile
+import time
 import wave
 from datetime import date
 from pathlib import Path
@@ -19,8 +21,10 @@ from typing import Dict, Optional
 from fastapi import Body, FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.concurrency import run_in_threadpool
 
 from agents.meta import MetaAPIError, transcribe
+from agents.segment import cut_all, find_receipts, read_all
 from agents.voice import KEYWORDS
 from app import state as st
 from app.assistant import explain, handle
@@ -31,6 +35,11 @@ STATIC = Path(__file__).resolve().parent / "static"
 MONTH = Path(os.environ.get("APP_MONTH", ROOT / "samples" / "october")).resolve()
 TODAY = date.fromisoformat(os.environ.get("APP_TODAY", "2026-10-31"))
 MAX_AUDIO_SECONDS = 60
+# Receipts enter the books by photo (SAM 3.1 + Muse Spark). APP_RECEIPTS=preloaded uses the batch run.
+RECEIPTS_FROM_PHOTO = os.environ.get("APP_RECEIPTS", "photo") != "preloaded"
+PILES = st.PATH.parent / "pile"
+SAMPLE_PILE = MONTH / "receipt_pile.jpg"
+MAX_PHOTO_BYTES = 15 * 1024 * 1024
 
 app = FastAPI(title="hackathon phone app", docs_url=None, redoc_url=None)
 app.mount("/static", StaticFiles(directory=STATIC), name="static")
@@ -41,7 +50,7 @@ _cache: Dict = {}
 def books() -> Books:
     state = st.load()
     if _cache.get("v") != state.get("v") or "books" not in _cache:
-        _cache.update(v=state.get("v"), books=Books(MONTH, TODAY, state))
+        _cache.update(v=state.get("v"), books=Books(MONTH, TODAY, state, receipts_from_photo=RECEIPTS_FROM_PHOTO))
     return _cache["books"]
 
 
@@ -171,6 +180,85 @@ async def transcribe_audio(request: Request):
     return {"heard": (heard.get("transcript") or "").strip(), "audio_ms": heard.get("audioDurationMs")}
 
 
+def _save_photo(raw: bytes, out: Path):
+    from PIL import Image, ImageOps
+    try:
+        img = ImageOps.exif_transpose(Image.open(io.BytesIO(raw))).convert("RGB")
+    except Exception:
+        raise HTTPException(400, "That photo couldn't be opened. Try a JPEG or PNG.")
+    img.thumbnail((3200, 3200))
+    out.parent.mkdir(parents=True, exist_ok=True)
+    img.save(out, "JPEG", quality=90)
+    return img.width, img.height
+
+
+@app.get("/api/receipts")
+def receipts_view():
+    return {"pile": books().pile_view(), "sample": SAMPLE_PILE.exists()}
+
+
+@app.post("/api/receipts/photo")
+async def receipts_photo(request: Request):
+    """Step 1: save the photo and let SAM 3.1 find every receipt in it. A JSON body
+    {"sample": true} uses the month's sample photo instead of an upload."""
+    if (request.headers.get("content-type") or "").startswith("application/json"):
+        if not SAMPLE_PILE.exists():
+            raise HTTPException(404, "There's no sample photo for this month.")
+        raw = SAMPLE_PILE.read_bytes()
+    else:
+        raw = await request.body()
+    if not raw or len(raw) > MAX_PHOTO_BYTES:
+        raise HTTPException(400, "Send one photo under 15 MB.")
+    pile_id = str(int(time.time() * 1000))
+    folder = PILES / pile_id
+    width, height = _save_photo(raw, folder / "photo.jpg")
+    started = time.time()
+    try:
+        boxes = await run_in_threadpool(find_receipts, folder / "photo.jpg")
+    except MetaAPIError as e:
+        shutil.rmtree(folder, ignore_errors=True)
+        _model_error(e)
+    if not boxes:
+        shutil.rmtree(folder, ignore_errors=True)
+        raise HTTPException(422, "SAM 3.1 didn't find a receipt in that photo. Lay them flat and try again.")
+    crops = await run_in_threadpool(cut_all, folder / "photo.jpg", boxes, folder)
+    found = round(time.time() - started, 1)
+
+    def change(s):
+        s["pile"] = {"id": pile_id, "photo": f"pile/{pile_id}/photo.jpg", "width": width, "height": height,
+                     "boxes": boxes, "crops": [c.name for c in crops], "receipts": None, "seconds": {"find": found}}
+    st.update(change)
+    for old in PILES.iterdir():  # keep only the newest photo's files
+        if old.is_dir() and old.name != pile_id:
+            shutil.rmtree(old, ignore_errors=True)
+    return {"pile": books().pile_view()}
+
+
+@app.post("/api/receipts/read")
+async def receipts_read():
+    """Step 2: Muse Spark reads every crop in parallel; code checks each against the card charges."""
+    pile = st.load().get("pile")
+    if not pile or not pile.get("crops"):
+        raise HTTPException(400, "Snap a photo of the receipts first.")
+    folder = PILES / pile["id"]
+    started = time.time()
+    receipts = await run_in_threadpool(read_all, [folder / n for n in pile["crops"]], pile["boxes"],
+                                       books().txns, f"pile/{pile['id']}/")
+    if not any(r.get("extracted") for r in receipts):
+        raise HTTPException(502, "Muse Spark couldn't read the receipts just now. Try again.")
+    read_seconds = round(time.time() - started, 1)
+
+    def change(s):
+        if (s.get("pile") or {}).get("id") != pile["id"]:
+            return
+        s["pile"]["receipts"] = [{k: r[k] for k in ("file", "box", "extracted", "error") if k in r} for r in receipts]
+        s["pile"]["crops"] = [Path(r["file"]).name for r in receipts]
+        s["pile"]["seconds"]["read"] = read_seconds
+    st.update(change)
+    b = books()
+    return {"pile": b.pile_view(), "home": b.home()}
+
+
 @app.post("/api/entries/{entry_id}/undo")
 def undo_entry(entry_id: str):
     def change(s):
@@ -184,12 +272,14 @@ def undo_entry(entry_id: str):
 @app.post("/api/reset")
 def reset():
     st.reset()
+    shutil.rmtree(PILES, ignore_errors=True)
     return {"home": books().home()}
 
 
 @app.get("/evidence/{rel:path}")
 def evidence(rel: str):
-    path = (MONTH / rel).resolve()
-    if MONTH not in path.parents or not path.is_file() or path.suffix.lower() not in {".jpg", ".jpeg", ".png", ".wav"}:
+    base = PILES.resolve() if rel.startswith("pile/") else MONTH
+    path = (base / (rel[5:] if rel.startswith("pile/") else rel)).resolve()
+    if base not in path.parents or not path.is_file() or path.suffix.lower() not in {".jpg", ".jpeg", ".png", ".wav"}:
         raise HTTPException(404, "No such file.")
     return FileResponse(path)

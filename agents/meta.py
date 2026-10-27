@@ -1,4 +1,5 @@
-"""Thin client for Meta Model API: chat (text and vision), image generation, speech to text.
+"""Thin client for Meta Model API: chat (text and vision), image generation, speech to text,
+and segmentation (SAM 3.1).
 
 Standard library only. Reads META_API_KEY from .env (never printed). Retries rate limits and
 server errors with backoff. Every call appends one line to data/usage.jsonl so spend is visible.
@@ -22,6 +23,7 @@ ROOT = Path(__file__).resolve().parents[1]
 CHAT_MODEL = "muse-spark-1.3"
 IMAGE_MODEL = "muse-image-1.0"
 VOICE_MODEL = "muse-voice-transcribe-1.0"
+SEGMENT_MODEL = "sam-3.1"
 
 
 class MetaAPIError(RuntimeError):
@@ -118,6 +120,37 @@ def generate_image(prompt: str, size: str = "768x1024", fmt: str = "jpeg") -> by
                                                "response_format": "b64_json", "output_format": fmt})
     _log("image", IMAGE_MODEL, time.time() - start, extra={"images": 1})
     return base64.b64decode(body["data"][0]["b64_json"])
+
+
+def _output_text(body: Dict[str, Any]) -> str:
+    """The text of a /responses reply, whether or not the server adds the output_text shortcut."""
+    if isinstance(body.get("output_text"), str):
+        return body["output_text"]
+    texts = []
+    for item in body.get("output") or []:
+        for part in item.get("content") or []:
+            if part.get("type") in ("output_text", "text"):
+                texts.append(part.get("text", ""))
+    return "".join(texts)
+
+
+def segment(image: Path, prompt: str) -> str:
+    """SAM 3.1 on one image with a short noun-phrase prompt. Returns SAM's raw output text: one
+    <|box;...|> (and mask) record per match, with a confidence c on each box. Empty means no match."""
+    mime = mimetypes.guess_type(str(image))[0] or "image/jpeg"
+    b64 = base64.b64encode(Path(image).read_bytes()).decode("ascii")
+    payload = {
+        "model": SEGMENT_MODEL,
+        "input": [{"type": "message", "role": "user", "content": [
+            {"type": "input_text", "text": prompt},
+            {"type": "input_image", "image_url": f"data:{mime};base64,{b64}"},
+        ]}],
+        "metadata": {"include_confidence": "true", "mask_encoding": "one_bit"},
+    }
+    start = time.time()
+    body = _post_json("/responses", payload)
+    _log("segment", SEGMENT_MODEL, time.time() - start, body.get("usage"), extra={"images": 1})
+    return _output_text(body)
 
 
 def transcribe(wav: Path, keywords: Optional[List[str]] = None) -> Dict[str, Any]:

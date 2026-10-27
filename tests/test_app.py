@@ -27,6 +27,26 @@ def books(state=None) -> Books:
     return Books(MONTH, TODAY, base)
 
 
+def photo_books(pile_state=None) -> Books:
+    state = {"decisions": {}, "entries": [], "amount_overrides": {}, "explanations": {}, "pile": pile_state}
+    return Books(MONTH, TODAY, state, receipts_from_photo=True)
+
+
+def pile() -> dict:
+    """A receipt photo as the app stores it once SAM 3.1 found the slips and Muse Spark read them
+    (the recorded readings of the five receipts, in the photo's reading order)."""
+    corners = [(420, 260, 860, 980), (1290, 300, 1710, 880), (2140, 270, 2580, 990),
+               (840, 1240, 1280, 2040), (1730, 1300, 2170, 2000)]
+    boxes = [{"x1": a, "y1": b, "x2": c, "y2": d, "w": 3000, "h": 2250, "confidence": 0.9} for a, b, c, d in corners]
+    recorded = json.loads((ROOT / "tests" / "fixtures" / "receipts_extracted.json").read_text())
+    names = ["2026-10-09_bayou-shine", "2026-10-11_lone-star", "2026-10-12_detailpro-supply",
+             "2026-10-18_bayou-fresh", "2026-10-24_bayou-shine"]
+    return {"id": "t", "photo": "pile/t/photo.jpg", "width": 3000, "height": 2250, "boxes": boxes,
+            "receipts": [{"file": f"pile/t/{n}.jpg", "box": b, "extracted": r["extracted"]}
+                         for n, b, r in zip(names, boxes, recorded)],
+            "seconds": {"find": 3.4, "read": 7.0}}
+
+
 def txn(desc, amount, kind="bank", source="chase_checking"):
     return Transaction(date="2026-10-10", amount=Decimal(amount), source=source, account="chase_1234", kind=kind, description=desc)
 
@@ -134,6 +154,37 @@ class Screens(unittest.TestCase):
         self.assertEqual((t["tire"], t["until"], t["refilled"]), ("rear-left", "2026-10-25", "2026-10-26"))
         self.assertFalse(t["ongoing"])
         self.assertLess(t["extra_cost"], 1.0)
+
+    def test_photo_mode_starts_without_receipts(self):
+        b = photo_books()
+        home = b.home()
+        self.assertEqual([x["id"] for x in home["bubbles"]], ["profit", "review", "turo", "rides", "receipts", "tire"])
+        bubble = home["bubbles"][4]
+        self.assertEqual((bubble["value"], bubble["label"], bubble["icon"]), ("", "Snap receipts", "camera"))
+        self.assertEqual(home["review"]["count"], 6)
+        self.assertFalse(any(i["id"].startswith("receipt:") for i in b.review_items()))
+        self.assertIsNone(b.pile_view())
+
+    def test_photo_mode_after_the_pile_is_read(self):
+        b = photo_books(pile())
+        home = b.home()
+        bubble = next(x for x in home["bubbles"] if x["id"] == "receipts")
+        self.assertEqual((bubble["value"], bubble["label"]), ("5", "receipts read"))
+        self.assertEqual(home["review"]["count"], 8)
+        receipts = sorted(i["id"] for i in b.review_items() if i["id"].startswith("receipt:"))
+        self.assertEqual(receipts, ["receipt:2026-10-11_lone-star", "receipt:2026-10-18_bayou-fresh"])
+        self.assertEqual(b.totals()["in_review"] - photo_books().totals()["in_review"], Decimal("14.32") + Decimal("126.43"))
+        view = b.pile_view()
+        self.assertEqual((view["found"], view["matched"], view["flagged"], view["read"]), (5, 5, 2, True))
+        self.assertEqual(view["items"][0]["box"]["left"], round(100.0 * 420 / 3000, 2))
+        self.assertEqual(view["items"][3]["flag"], "Looks personal")
+
+    def test_photo_mode_while_sam_has_found_but_spark_has_not_read(self):
+        found = pile()
+        found["receipts"] = None
+        view = photo_books(found).pile_view()
+        self.assertEqual((view["found"], view["read"], view["flagged"]), (5, False, 0))
+        self.assertEqual(photo_books(found).home()["review"]["count"], 6)
 
     def test_details_and_context(self):
         b = books()

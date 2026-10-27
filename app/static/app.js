@@ -37,7 +37,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 async function api(path, opts = {}) {
   const headers = {};
   if (opts.body && typeof opts.body === 'string') headers['Content-Type'] = 'application/json';
-  if (opts.body instanceof Blob) headers['Content-Type'] = 'audio/wav';
+  if (opts.body instanceof Blob) headers['Content-Type'] = opts.body.type || 'application/octet-stream';
   const res = await fetch(path, { ...opts, headers });
   let data = null;
   try { data = await res.json(); } catch (_) { /* not JSON */ }
@@ -76,6 +76,12 @@ function tireIcon() {
     svgEl('circle', { cx: 11, cy: 11, r: 8.5, fill: 'none', stroke: '#2D2A5A', 'stroke-width': 1.8 }),
     svgEl('circle', { cx: 11, cy: 11, r: 3.5, fill: 'none', stroke: '#2D2A5A', 'stroke-width': 1.8 }));
 }
+function cameraIcon() {
+  return svgEl('svg', { viewBox: '0 0 24 24', 'aria-hidden': 'true' },
+    svgEl('rect', { x: 3, y: 7, width: 18, height: 13, rx: 3.5, fill: 'none', stroke: '#2D2A5A', 'stroke-width': 1.8 }),
+    svgEl('path', { d: 'M8.5 7l1.6-2.6h3.8L15.5 7', fill: 'none', stroke: '#2D2A5A', 'stroke-width': 1.8, 'stroke-linejoin': 'round' }),
+    svgEl('circle', { cx: 12, cy: 13.5, r: 3.6, fill: 'none', stroke: '#2D2A5A', 'stroke-width': 1.8 }));
+}
 function rows(list, hot) {
   return el('div', { class: 'rows' }, list.map(([a, b]) =>
     el('div', { class: 'row' + (hot && a === hot ? ' hot' : '') }, el('span', { text: a }), el('span', { text: b }))));
@@ -106,6 +112,7 @@ function renderHome(h) {
     node.classList.add(`tone-${b.tone}`);
     const kids = [cloudShape(b.tone)];
     if (b.icon === 'tire') kids.push(tireIcon());
+    if (b.icon === 'camera') kids.push(cameraIcon());
     if (b.value) kids.push(el('span', { class: 'v', text: b.value }));
     kids.push(el('span', { class: 'l', text: b.label }));
     node.replaceChildren(...kids);
@@ -127,6 +134,7 @@ function renderHome(h) {
 function openBubble(id, node) {
   node.classList.add('leaving');
   if (id === 'review') openReview();
+  else if (id === 'receipts') openReceipts();
   else openDetail(id);
 }
 
@@ -324,6 +332,89 @@ async function undoDecision(it) {
     renderHome(r.home);
     openSheet(reviewNodes());
   } catch (e) { toast(e.message); }
+}
+
+/* ---------- receipts: one photo, every slip found (SAM 3.1), read (Muse Spark), checked (code) ---------- */
+const photoInput = el('input', { type: 'file', accept: 'image/*', capture: 'environment', hidden: true });
+document.body.append(photoInput);
+photoInput.addEventListener('change', () => {
+  const f = photoInput.files && photoInput.files[0];
+  photoInput.value = '';
+  if (f) snapPile(f);
+});
+
+async function openReceipts() {
+  let r;
+  try { r = await api('/api/receipts'); } catch (e) { sheetError(e.message); return; }
+  openSheet(r.pile && r.pile.read ? pileNodes(r.pile, 'done') : startNodes(r.sample));
+}
+function startNodes(sample) {
+  return [title('Snap your receipts'),
+    el('p', { text: 'Lay the month’s receipts out and take one photo. SAM 3.1 finds each receipt, Muse Spark reads it, and your books check it against your cards.' }),
+    el('div', { class: 'actions' },
+      el('button', { type: 'button', class: 'btn primary', text: 'Take a photo', onclick: () => photoInput.click() }),
+      sample ? el('button', { type: 'button', class: 'btn', text: 'Use the sample photo', onclick: () => snapPile(null) }) : null)];
+}
+function pileFigure(pile, src, stage) {
+  const fig = el('div', { class: `pile ${stage}` }, el('img', { src: src || pile.photo, alt: 'Your receipts photo' }));
+  (pile ? pile.items : []).forEach((it, i) => {
+    const b = it.box;
+    const box = el('div', {
+      class: 'box' + (it.amount ? ' read' : '') + (it.flag ? ' flagged' : ''),
+      style: `left:${b.left}%;top:${b.top}%;width:${b.width}%;height:${b.height}%;animation-delay:${i * 120}ms`,
+    });
+    if (it.amount) box.append(el('span', { class: 'tag', text: it.flag ? `${it.amount} · ${it.flag.toLowerCase()}` : `${it.amount} ✓` }));
+    fig.append(box);
+  });
+  return fig;
+}
+function statusLine(model, text, working) {
+  return el('div', { class: 'status-line' }, el('span', { class: 'pill strong', text: model }), el('span', { text }),
+    working ? el('span', { class: 'dots', 'aria-label': 'Working' }, el('span'), el('span'), el('span')) : null);
+}
+function pileNodes(pile, stage, src) {
+  if (stage === 'finding') {
+    return [title('Finding your receipts'), pileFigure(null, src, stage), statusLine('SAM 3.1', 'is finding every receipt', true)];
+  }
+  if (stage === 'reading') {
+    return [title(`Found ${pile.found} receipt${pile.found === 1 ? '' : 's'}`), pileFigure(pile, src, stage),
+      statusLine('SAM 3.1', `found them in ${pile.seconds.find}s`), statusLine('Muse Spark', 'is reading each one', true)];
+  }
+  const nodes = [title(`${pile.found} receipt${pile.found === 1 ? '' : 's'} read`), pileFigure(pile, src, stage),
+    el('p', { text: `${pile.matched} of ${pile.found} matched to a card charge${pile.flagged ? `, and ${pile.flagged} need${pile.flagged === 1 ? 's' : ''} a look` : ''}.` }),
+    el('div', { class: 'rows' }, pile.items.map((it) =>
+      el('button', { type: 'button', class: 'row pile-row', onclick: () => { if (it.image) viewImage(it.image); } },
+        el('span', {}, el('b', { text: it.title }), el('div', { class: 'muted', text: it.flag ? `${it.flag} · ${it.status}` : it.status })),
+        el('span', { text: it.amount || '' })))),
+    el('span', { class: 'muted', text: `Found by SAM 3.1 in ${pile.seconds.find}s, read by Muse Spark in ${pile.seconds.read}s, matched to your cards in code.` })];
+  nodes.push(el('div', { class: 'actions' },
+    pile.flagged
+      ? el('button', { type: 'button', class: 'btn primary', text: 'Review them', onclick: () => openReview() })
+      : el('button', { type: 'button', class: 'btn primary', text: 'Done', onclick: closeSheet }),
+    el('button', { type: 'button', class: 'btn', text: 'Take a new photo', onclick: () => photoInput.click() })));
+  return nodes;
+}
+let pileBusy = false;
+async function snapPile(file) {
+  if (pileBusy) return;
+  pileBusy = true;
+  const preview = file ? URL.createObjectURL(file) : '/evidence/receipt_pile.jpg';
+  openSheet(pileNodes(null, 'finding', preview));
+  try {
+    const found = await api('/api/receipts/photo', file
+      ? { method: 'POST', body: file }
+      : { method: 'POST', body: JSON.stringify({ sample: true }) });
+    openSheet(pileNodes(found.pile, 'reading', preview));
+    const done = await api('/api/receipts/read', { method: 'POST' });
+    renderHome(done.home);
+    openSheet(pileNodes(done.pile, 'done'));
+  } catch (e) {
+    toast(e.message);
+    openReceipts();
+  } finally {
+    pileBusy = false;
+    if (file) setTimeout(() => URL.revokeObjectURL(preview), 5000);
+  }
 }
 
 function viewImage(src) {
@@ -608,7 +699,7 @@ $('settingsBtn').addEventListener('click', () => {
     el('p', { text: 'Bayou City Mobility LLC is a made-up company. Every number here comes from a synthetic month built for this demo.' }),
     rows([['Today, in the app', today], ['Month', home ? home.month : '']]),
     el('div', { class: 'section-title' }, el('span', { text: 'Meta models doing the work' })),
-    rows([['Muse Spark', 'Reads receipts, books cash, answers'], ['Muse Voice Transcribe', 'Hears what you say'], ['Muse Image', 'Made the demo receipts']]),
+    rows([['Muse Spark', 'Reads receipts, books cash, answers'], ['SAM 3.1', 'Finds each receipt in a photo'], ['Muse Voice Transcribe', 'Hears what you say'], ['Muse Image', 'Made the demo receipts']]),
     el('div', { class: 'actions' }, resetBtn),
   ]);
 });

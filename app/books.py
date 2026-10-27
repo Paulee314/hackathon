@@ -125,10 +125,13 @@ def _first_existing(*paths: Path) -> Optional[Path]:
 class Books:
     """One month, as the app sees it. Rebuilt whenever app state changes (it is cheap)."""
 
-    def __init__(self, month_dir: Path, today: date, state: Dict):
+    def __init__(self, month_dir: Path, today: date, state: Dict, receipts_from_photo: bool = False):
         self.month_dir = Path(month_dir)
         self.today = today
         self.state = state
+        # True in the app: receipts enter the books only when the driver snaps them (SAM 3.1 finds
+        # each slip, Muse Spark reads it). False reads them from the batch run or the test fixture.
+        self.receipts_from_photo = receipts_from_photo
         self.txns, _, _ = load_folder(self.month_dir)
         self.first_day = date.fromisoformat(min(t.date for t in self.txns))
         self.last_day = date.fromisoformat(max(t.date for t in self.txns))
@@ -147,6 +150,10 @@ class Books:
 
     # ---- inputs -------------------------------------------------------------------------
     def _receipts(self) -> List[Dict]:
+        if self.receipts_from_photo:
+            rows = (self.state.get("pile") or {}).get("receipts") or []
+            return [{"file": r["file"], "extracted": r["extracted"], **assess(r["extracted"], self.txns)}
+                    for r in rows if r.get("extracted")]
         path = _first_existing(ROOT / "data" / "ledger" / "receipts.json",
                                ROOT / "tests" / "fixtures" / "receipts_extracted.json")
         if path is None:
@@ -557,6 +564,11 @@ class Books:
             {"id": "rides", "value": money0(self.ride_profit()["summary"]["all"]["true_profit"] / self.hours_on_road()) + "/hr",
              "label": "after car costs", "tone": "white", "size": "m"},
         ]
+        if self.receipts_from_photo:
+            got = len(self.receipts)
+            bubbles.append({"id": "receipts", "value": str(got) if got else "",
+                            "label": "receipts read" if got else "Snap receipts",
+                            "tone": "sky" if got else "white", "size": "s", "icon": None if got else "camera"})
         if tire and tire.get("low"):
             bubbles.append({"id": "tire", "value": "", "label": "Tire is low" if tire["ongoing"] else "Tire ran low",
                             "tone": "mist", "size": "s", "icon": "tire"})
@@ -569,6 +581,47 @@ class Books:
                 "hint": "Tap a bubble, or hold the cloud and talk.", "bubbles": bubbles,
                 "suggestions": ["How did this week go?", "Which rides paid best?", "What did I spend on charging?"],
                 "review": {"count": n, "total": money(pending_total)}}
+
+    def pile_view(self) -> Optional[Dict]:
+        """The receipt photo as the app shows it: SAM's boxes (as % of the photo) and, once Muse
+        Spark has read them, what each receipt says and what the code checks found."""
+        pile = self.state.get("pile")
+        if not pile:
+            return None
+        w, h = pile["width"], pile["height"]
+        read = pile.get("receipts") is not None
+        readings = pile.get("receipts") or []
+        items = []
+        for i, b in enumerate(pile["boxes"]):
+            item = {"title": f"Receipt {i + 1}", "box": {
+                "left": round(100.0 * b["x1"] / w, 2), "top": round(100.0 * b["y1"] / h, 2),
+                "width": round(100.0 * (b["x2"] - b["x1"] + 1) / w, 2),
+                "height": round(100.0 * (b["y2"] - b["y1"] + 1) / h, 2), "confidence": b["confidence"]}}
+            r = readings[i] if read and i < len(readings) else None
+            if r and r.get("extracted"):
+                e = r["extracted"]
+                a = assess(e, self.txns)
+                m = a["match"]
+                try:
+                    when = short_date(e.get("date") or "")
+                except ValueError:
+                    when = ""
+                flag = None
+                if e.get("kind") in ("personal", "mixed"):
+                    flag = f"Looks {e['kind']}"
+                elif any("arithmetic" in f for f in a["flags"]):
+                    flag = "Doesn't add up"
+                item.update(title=(e.get("merchant") or "Receipt").title(), date=when,
+                            amount=money(Decimal(str(e.get("total") or 0))), flag=flag,
+                            status=(f"Matched to the {account_name(m['account'])}, {short_date(m['date'])}" if m
+                                    else "No card charge for this amount"),
+                            image="/evidence/" + r["file"])
+            elif r is not None:
+                item.update(status="Couldn't read this one", flag="Unreadable")
+            items.append(item)
+        return {"photo": "/evidence/" + pile["photo"], "width": w, "height": h, "read": read, "items": items,
+                "found": len(items), "matched": sum(1 for i in items if i.get("status", "").startswith("Matched")),
+                "flagged": sum(1 for i in items if i.get("flag")), "seconds": pile.get("seconds") or {}}
 
     def detail(self, which: str) -> Optional[Dict]:
         if which == "profit":

@@ -16,7 +16,7 @@ _lock = threading.Lock()
 
 
 def empty() -> Dict:
-    return {"v": 0, "decisions": {}, "entries": [], "amount_overrides": {}, "explanations": {}}
+    return {"v": 0, "decisions": {}, "entries": [], "amount_overrides": {}, "explanations": {}, "pile": None}
 
 
 def load() -> Dict:
