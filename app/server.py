@@ -31,7 +31,7 @@ from starlette.concurrency import run_in_threadpool
 
 from agents.meta import MetaAPIError, transcribe
 from agents.segment import cut_all, find_receipts, read_all
-from agents.voice import KEYWORDS
+from agents.voice import KEYWORDS, tidy_transcript
 from app import reports
 from app import state as st
 from app.assistant import explain, handle
@@ -277,7 +277,7 @@ async def transcribe_audio(request: Request):
         _model_error(e)
     finally:
         path.unlink(missing_ok=True)
-    return {"heard": (heard.get("transcript") or "").strip(), "audio_ms": heard.get("audioDurationMs")}
+    return {"heard": tidy_transcript(heard.get("transcript") or ""), "audio_ms": heard.get("audioDurationMs")}
 
 
 def _save_photo(raw: bytes, out: Path):

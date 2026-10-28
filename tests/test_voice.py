@@ -17,7 +17,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from agents.voice import recorded_on, to_transaction  # noqa: E402
+from agents.voice import recorded_on, tidy_transcript, to_transaction  # noqa: E402
 from ingest.schema import KINDS  # noqa: E402
 
 VOICE = ROOT / "samples" / "october" / "voice"
@@ -68,6 +68,33 @@ class Voice(unittest.TestCase):
         parsed = {"date": "2026-10-20", "amount": 40, "payee": "?", "business_line": "rideshare",
                   "schedule_c_line": "9 Car and truck expenses", "question": "What was the $40 for?"}
         self.assertIsNone(to_transaction(parsed, "2026-10-20_x.wav"))
+
+
+class Tidy(unittest.TestCase):
+    """Repeats Muse Voice Transcribe actually returned on Oct 28 (same audio, different word each run)."""
+
+    def test_drops_repeats(self):
+        cases = {
+            "What if I skipped skipped pickups over three miles?": "What if I skipped pickups over three miles?",
+            "What if I I skipped pickups over three miles?": "What if I skipped pickups over three miles?",
+            "What if I skipped I skipped pickups over three miles?": "What if I skipped pickups over three miles?",
+            "What if I skipped pickups? Over three miles. miles.": "What if I skipped pickups? Over three miles.",
+            "paid fifteen dollars cash for a for a car wash on the way home yesterday.":
+                "paid fifteen dollars cash for a car wash on the way home yesterday.",
+            "Paid $15 cash for a car wash on the on the way home yesterday.":
+                "Paid $15 cash for a car wash on the way home yesterday.",
+            "paid $15 $15 cash for a car wash on the way home home yesterday,":
+                "paid $15 cash for a car wash on the way home yesterday,",
+            "Paid paid $15 cash for a car car wash": "Paid $15 cash for a car wash",
+        }
+        for heard, want in cases.items():
+            self.assertEqual(tidy_transcript(heard), want, heard)
+
+    def test_leaves_normal_speech(self):
+        for said in ["Paid $15 cash for a car wash on the way home yesterday.",
+                     "Paid for two two-dollar tolls on the way to Hobby Airport",
+                     "What if I skip pickups over 4 miles?", "Bought a 12 pack of water, $8.99", ""]:
+            self.assertEqual(tidy_transcript(said), said.strip())
 
 
 if __name__ == "__main__":

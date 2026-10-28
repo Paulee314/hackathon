@@ -25,6 +25,24 @@ from ingest.schema import COLUMNS, Transaction
 ROOT = Path(__file__).resolve().parents[1]
 KEYWORDS = ["Hobby Airport", "Turo", "Uber", "Lyft", "Tesla", "Supercharger"]
 
+# Muse Voice Transcribe sometimes writes a word or a short phrase twice in a row ("for a for a car wash",
+# "skipped skipped"): in testing, about 1 transcript in 6, and a different word each time on the same audio.
+_REPEAT = re.compile(r"(?<![\w$'])(\$?[\w']+(?:[ ,]+\$?[\w']+){0,3})(?:[\s,.?!]+\1)+(?![\w'])", re.I)
+
+
+def tidy_transcript(text: str) -> str:
+    """Drop a word or phrase (up to four words) that comes back-to-back twice. A repeat that runs into a
+    hyphen is kept, since "two two-dollar tolls" is real speech."""
+    text = (text or "").strip()
+
+    def keep_one(m):
+        return m.group(0) if m.string[m.end():m.end() + 1] == "-" else m.group(1)
+
+    prev = None
+    while prev != text:
+        prev, text = text, _REPEAT.sub(keep_one, text)
+    return text
+
 PROMPT = """A driver who drives for Uber and Lyft and rents cars out on Turo recorded this voice note
 on {recorded} ({weekday}). The words were transcribed by speech recognition:
 "{transcript}"
@@ -74,7 +92,7 @@ def process(month: Path):
     results, booked = [], []
     for wav in notes:
         heard = transcribe(wav, keywords=KEYWORDS)
-        text = heard.get("transcript", "").strip()
+        text = tidy_transcript(heard.get("transcript", ""))
         parsed = parse_note(text, recorded_on(wav))
         txn = to_transaction(parsed, wav.name)
         if txn:
