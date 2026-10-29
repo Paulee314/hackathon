@@ -3,7 +3,11 @@ open-weights model, served by Baseten (needs BASETEN_API_KEY in .env; --model mu
 Open weights mean a firm could run this step on its own hardware and keep client data in-house. On the demo
 month it matches Muse Spark 1.3 on all 22 merchants (scripts/compare_categorizers.py).
 
-    python3 -m agents.categorize samples/october
+    python3 -m agents.categorize samples/october [--rules data/ledger/rules.json]
+
+Corrections become rules: the owner's answers in the app (download them from /api/rules) are applied first. A
+merchant the owner called personal is set in code and never sent to the model; one the owner called business is
+sent with that said, and the model only picks its line.
 
 Merchants are grouped first (store numbers and reference codes stripped), so one call covers the month and
 the same merchant is categorized the same way every time. Results go to data/ledger/categories.json; the app
@@ -18,7 +22,7 @@ import sys
 from collections import OrderedDict
 from decimal import Decimal
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from agents.meta import OPEN_MODEL, chat_json
 from ingest.load import load_folder
@@ -41,6 +45,7 @@ For each merchant, decide how it belongs on the owner's Schedule C (US, sole own
 - "loan_payment": a car loan payment (principal is not deductible; only the interest is, from the loan statement)
 - "owner_draw": money moved out to the owner personally
 schedule_c_line must be one of {lines}, or null for personal, transfer, loan_payment and owner_draw.
+A merchant marked "the owner says: a business cost" is one: choose "expense" or "vehicle" and its line.
 
 Return only a JSON array, one object per merchant, in the same order:
 [{{"merchant": exactly as given, "treatment": one of the treatments, "schedule_c_line": string or null,
@@ -73,20 +78,36 @@ def spending(txns: List[Transaction]) -> "OrderedDict[str, Dict]":
     return groups
 
 
-def categorize(txns: List[Transaction], model: str = OPEN_MODEL) -> Dict[str, Dict]:
+def categorize(txns: List[Transaction], model: str = OPEN_MODEL, rules: Optional[Dict[str, Dict]] = None) -> Dict[str, Dict]:
+    """rules: the owner's answers, merchant -> {"says": "personal" | "business"} (Books.merchant_rules)."""
     groups = spending(txns)
-    listing = "\n".join(f"- {k} | {g['count']}x, {g['total']:.2f} total | e.g. \"{g['example']}\" | {g['kind']} on {g['account']}"
-                        + (f" | bank says {g['bank_category']}" if g["bank_category"] else "") for k, g in groups.items())
-    out = chat_json([{"role": "user", "content": PROMPT.format(lines=", ".join(f'"{l}"' for l in LINES), merchants=listing)}], model=model)
+    rules = rules or {}
+    says = {k: (rules.get(k) or {}).get("says") for k in groups}
     result = {}
-    for row in out if isinstance(out, list) else []:
-        key = str(row.get("merchant", "")).upper().strip()
-        if key in groups and row.get("treatment") in TREATMENTS:
-            line = row.get("schedule_c_line")
-            result[key] = {"treatment": row["treatment"], "schedule_c_line": line if line in LINES else None,
-                           "business_line": row.get("business_line") or "both", "reason": row.get("reason", ""),
-                           "count": groups[key]["count"], "total": str(groups[key]["total"])}
-    return result
+    for k, g in groups.items():
+        if says[k] == "personal":   # the owner already answered: no model call needed
+            result[k] = {"treatment": "personal", "schedule_c_line": None, "business_line": "both",
+                         "reason": "You said personal on an earlier review card.", "rule": True,
+                         "count": g["count"], "total": str(g["total"])}
+    ask = OrderedDict((k, g) for k, g in groups.items() if k not in result)
+    if ask:
+        listing = "\n".join(f"- {k} | {g['count']}x, {g['total']:.2f} total | e.g. \"{g['example']}\" | {g['kind']} on {g['account']}"
+                            + (f" | bank says {g['bank_category']}" if g["bank_category"] else "")
+                            + (" | the owner says: a business cost" if says[k] == "business" else "") for k, g in ask.items())
+        out = chat_json([{"role": "user", "content": PROMPT.format(lines=", ".join(f'"{l}"' for l in LINES), merchants=listing)}], model=model)
+        for row in out if isinstance(out, list) else []:
+            key = str(row.get("merchant", "")).upper().strip()
+            if key in ask and row.get("treatment") in TREATMENTS:
+                treatment, line = row["treatment"], row.get("schedule_c_line")
+                line = line if line in LINES else None
+                if says[key] == "business" and treatment not in ("expense", "vehicle"):
+                    treatment, line = "expense", line or "27a Other expenses"   # the owner's answer wins
+                result[key] = {"treatment": treatment, "schedule_c_line": line,
+                               "business_line": row.get("business_line") or "both", "reason": row.get("reason", ""),
+                               "count": groups[key]["count"], "total": str(groups[key]["total"])}
+                if says[key] == "business":
+                    result[key]["rule"] = True
+    return OrderedDict((k, result[k]) for k in groups if k in result)
 
 
 def main():
@@ -94,12 +115,19 @@ def main():
     ap.add_argument("month", nargs="?", default="samples/october")
     ap.add_argument("--model", default=OPEN_MODEL)
     ap.add_argument("--out", default=str(ROOT / "data" / "ledger" / "categories.json"))
+    ap.add_argument("--rules", default=str(ROOT / "data" / "ledger" / "rules.json"),
+                    help="the owner's answers from the app (/api/rules); used if the file exists")
     args = ap.parse_args()
+    rules = {}
+    if Path(args.rules).exists():
+        data = json.loads(Path(args.rules).read_text())
+        rules = data.get("rules", data)
+        print(f"  applying {len(rules)} rule(s) from your answers: {', '.join(rules)}")
     txns, _, _ = load_folder(Path(args.month))
     from app.books import Books  # cash entries from voice notes count too
     from datetime import date
     txns = txns + Books(Path(args.month), date(2026, 10, 31), {}).cash_txns()
-    cats = categorize(txns, args.model)
+    cats = categorize(txns, args.model, rules)
     missing = [k for k in spending(txns) if k not in cats]
     for k, c in cats.items():
         print(f"  {k:<28} {c['treatment']:<13} {c['schedule_c_line'] or '':<34} {c['reason']}")

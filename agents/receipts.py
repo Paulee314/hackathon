@@ -74,6 +74,19 @@ def find_charge(r: Dict, txns) -> Optional[Dict]:
             "amount": str(t.amount), "merchant_words_in_common": best[0][0], "days_apart": -best[0][1]}
 
 
+# A prepared meal (not groceries): the tax question for a meal is whether work kept the driver away from home
+# overnight, which no receipt can answer, so the app asks. Words are matched on the merchant and the item lines.
+MEAL_MERCHANT_WORDS = {"burger", "pizza", "taco", "taqueria", "grill", "cafe", "diner", "kitchen", "restaurant",
+                       "bbq", "sushi", "deli", "wings", "pho", "noodle", "bistro", "cantina", "donut", "bakery"}
+MEAL_ITEM_WORDS = {"combo", "fries", "entree", "sandwich", "burrito", "latte", "meal", "platter"}
+
+
+def is_meal(extracted: Dict) -> bool:
+    merchant = _words(extracted.get("merchant") or "")
+    items = set().union(*[_words(i.get("description") or "") for i in extracted.get("items") or []] or [set()])
+    return bool(merchant & MEAL_MERCHANT_WORDS or items & MEAL_ITEM_WORDS)
+
+
 def assess(extracted: Dict, txns) -> Dict:
     """Checks done in code on what the model read: arithmetic, the matching charge, and flags."""
     checks = check_arithmetic(extracted)

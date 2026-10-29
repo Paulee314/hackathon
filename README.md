@@ -1,4 +1,7 @@
-# hackathon
+# Ryde Off
+
+Your AI bookkeeper for gig drivers: say what happened, and your month is closed.
+
 
 Entry for the **Meta Global AI Developer Hackathon** (Oct 26 – Nov 4, 2026), Startup track.
 
@@ -112,9 +115,13 @@ Each opens in the app with a draft or final status and downloads as CSV (`/api/r
 
 ## How the close agent works
 
-`agents/close.py` makes every decision about a number in code, so each finding carries the rows that prove it. It matches Uber and Turo payouts to bank deposits to the penny, matches each Lyft deposit to the Monday-to-Sunday week of rides it pays for (Lyft exports no payouts), matches card payments between accounts, looks for identical charges on one day and for money in that nothing explains, and ties checking to its statement: opening balance plus the month's activity must equal the closing balance. On the demo month it catches all six planted problems; the one extra flag is a meal on a card, which Muse Spark called personal.
+`agents/close.py` makes every decision about a number in code, so each finding carries the rows that prove it. It matches Uber and Turo payouts to bank deposits to the penny, matches each Lyft deposit to the Monday-to-Sunday week of rides it pays for (Lyft exports no payouts), matches card payments between accounts, looks for identical charges on one day and for money in that nothing explains, and ties checking to its statement: opening balance plus the month's activity must equal the closing balance. On the demo month it catches all six planted problems with no false alarms, and asks the owner one question the records can't answer (below).
 
 What it can't explain becomes a review card, biggest amount first. Each answer has a defined effect on the books (a Lyft shortfall booked as a fee adds $5.00 of fees; a duplicate charge left out stays out), and each tie-out check reads Passes, Answered or Needs you. Where the records can't tell (a Zelle from a person), the card asks instead of suggesting.
+
+A meal on the business card is one of those. Tax law makes a meal a business cost only on travel, away from home overnight or long enough to need sleep or rest, and then at 50% (IRC §162(a)(2) and §274(n)(1), Schedule C line 24b); a meal between rides in your own city is personal (Treas. Reg. §1.262-1(b)(5); IRS Publication 463). No receipt can say which, so the card states the rule, shows what each answer does, and lets the driver choose. The answer key lists it as an owner question (`owner_questions` in `expected_exceptions.json`), not a planted error.
+
+Corrections become rules. A receipt you call personal or business is treated that way for every charge at that merchant, and the review screen lists what your answers taught the books. `/api/rules` downloads them; `python3 -m agents.categorize --rules rules.json` applies them next month before the model sees anything: a merchant you called personal is never sent to the model, and one you called business is sent with that said, so the model only picks its line.
 
 `agents/categorize.py` sends each merchant once to Muse Spark Open, Meta's open-weights model, served by Baseten. It labels each one with a Schedule C line and a treatment: business expense, vehicle cost (counts only under the actual-expense method), personal, transfer, loan payment or owner draw. Totals are always added up in code. Because the weights are open, a firm could run this step on its own hardware and keep client data in-house. On the demo month it matches Muse Spark 1.3 on all 22 merchants, treatment and Schedule C line ($5,612.11 of spending), in two runs; the one difference is a business-line call (DetailPro Supply, $38.62: Turo rather than shared). `scripts/compare_categorizers.py` reruns the comparison. The app reads the saved labels, so the hosted demo makes no Baseten calls.
 

@@ -68,5 +68,17 @@
       ],
       "truth": "Zelle from an individual with no platform record (possibly an off-platform Turo extension). Income, but the owner must say what it is."
     }
+  ],
+  "owner_questions": [
+    {
+      "id": "Q1",
+      "type": "meal",
+      "date": "2026-10-11",
+      "amount": "14.32",
+      "accounts": [
+        "amex_platinum"
+      ],
+      "truth": "A meal on the business card. Deductible only as a travel meal, away from home overnight or long enough to need sleep or rest, and then at 50% on Schedule C line 24b (IRC 162(a)(2), 274(n)); a local meal is personal (Treas. Reg. 1.262-1(b)(5)). The records can't tell, so the owner is asked, with no suggested answer."
+    }
   ]
 }

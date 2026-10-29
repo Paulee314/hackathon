@@ -272,15 +272,19 @@ def run(txns: List[Transaction], month_dir: Path) -> Dict:
 
 # ---- scoring against the answer key ------------------------------------------------------------
 def score(found: List[Dict], expected_path: Path) -> Dict:
-    """found: dicts with date and amount (agent exceptions plus receipt flags). Matched on date and amount."""
-    key = json.loads(Path(expected_path).read_text())["exceptions"]
+    """found: dicts with date and amount (agent exceptions plus receipt flags). Matched on date and amount.
+    The key's owner questions (things only the owner can answer, like whether a meal was on an overnight work
+    trip) count as asked, not as false alarms."""
+    data = json.loads(Path(expected_path).read_text())
+    key, questions = data["exceptions"], data.get("owner_questions", [])
     def same(f, e):
         return (abs((date.fromisoformat(f["date"]) - date.fromisoformat(e["date"])).days) <= 1
                 and Decimal(str(f["amount"])).copy_abs() == Decimal(e["amount"]).copy_abs())
     caught = [e["id"] for e in key if any(same(f, e) for f in found)]
     missed = [e["id"] for e in key if e["id"] not in caught]
-    false_alarms = [f.get("title", f["date"]) for f in found if not any(same(f, e) for e in key)]
-    return {"caught": caught, "missed": missed, "false_alarms": false_alarms, "of": len(key)}
+    asked = [q["id"] for q in questions if any(same(f, q) for f in found)]
+    false_alarms = [f.get("title", f["date"]) for f in found if not any(same(f, e) for e in key + questions)]
+    return {"caught": caught, "missed": missed, "false_alarms": false_alarms, "of": len(key), "asked": asked}
 
 
 def main():
@@ -305,7 +309,7 @@ def main():
     if key.exists():
         s = score(found, key)
         print(f"\nAnswer key: caught {len(s['caught'])} of {s['of']} {s['caught']}; missed {s['missed']}; "
-              f"false alarms {len(s['false_alarms'])} {s['false_alarms']}")
+              f"false alarms {len(s['false_alarms'])} {s['false_alarms']}; owner questions asked {s['asked']}")
 
 
 if __name__ == "__main__":

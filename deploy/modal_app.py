@@ -1,4 +1,4 @@
-"""Host the Ride-off phone app on Modal, so judges (and the iPhone recording) get an https link.
+"""Host the Ryde Off phone app on Modal, so judges (and the iPhone recording) get an https link.
 
 One container, kept warm, serves the FastAPI app. Visitor state and the usage log live on a Modal
 Volume, so a restart doesn't wipe them or reset the daily spend cap. The Meta key comes from a

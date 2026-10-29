@@ -287,6 +287,7 @@ function sparkline(series, placard) {
 /* ---------- review: one card at a time ---------- */
 async function openReview() {
   try { review = await api('/api/review'); } catch (e) { sheetError(e.message); return; }
+  review.rules = review.rules || [];
   openSheet(reviewNodes());
 }
 function reviewNodes() {
@@ -323,6 +324,7 @@ function reviewNodes() {
   }
   const card = el('div', { class: 'card-in', style: 'display:flex;flex-direction:column;gap:14px' },
     el('span', { class: 'pill', text: it.tag }), title(it.title), el('p', { text: it.body }),
+    it.basis ? el('p', { class: 'muted basis', text: it.basis }) : null,
     ...evidence, it.rows.length ? rows(it.rows) : null,
     el('div', { class: 'suggestion' }, miniCloud(),
       el('span', {}, el('b', { text: it.suggestion ? it.suggestion.label : 'The records can’t tell. Which was it?' }),
@@ -364,9 +366,11 @@ async function decide(it, choice, amount) {
   try {
     const r = await api(`/api/review/${encodeURIComponent(it.id)}`, { method: 'POST', body: JSON.stringify(body) });
     review.items = r.items;
+    review.rules = r.rules || [];
     renderHome(r.home);
     const picked = it.choices.find((c) => c.choice === choice);
-    if (it.suggestion && choice === it.suggestion.choice) toast('Approved');
+    if (r.learned) toast(r.learned);   // a correction became a rule
+    else if (it.suggestion && choice === it.suggestion.choice) toast('Approved');
     else if (choice === 'amount') toast(`Saved $${body.amount.toFixed(2)}`);
     else toast(`Saved: ${picked ? picked.label : 'changed'}`);
     openSheet(reviewNodes());
@@ -382,15 +386,21 @@ function doneNodes() {
       el('span', {}, el('b', { text: it.title }), el('div', { class: 'muted', text: said })),
       el('button', { type: 'button', text: 'Undo', onclick: () => undoDecision(it) }));
   }));
+  const learned = (review.rules || []).length ? [
+    el('div', { class: 'section-title' }, el('span', { text: 'What your answers taught the books' })),
+    rows(review.rules.map((r) => [r.name, r.says === 'personal' ? 'Personal, every time' : 'Business, every time'])),
+    el('p', { class: 'muted', text: 'Next month these are set before the categorizer sees them.' }),
+  ] : [];
   return [title(review.items.length ? 'All reviewed' : 'Nothing to review'),
     el('p', { text: review.items.length ? 'Each answer is saved with the receipt or note behind it.' : 'Every receipt and note checks out.' }),
-    list,
+    list, ...learned,
     el('div', { class: 'actions' }, el('button', { type: 'button', class: 'btn primary', text: 'Back to the cloud', onclick: closeSheet }))];
 }
 async function undoDecision(it) {
   try {
     const r = await api(`/api/review/${encodeURIComponent(it.id)}`, { method: 'DELETE' });
     review.items = r.items;
+    review.rules = r.rules || [];
     renderHome(r.home);
     openSheet(reviewNodes());
   } catch (e) { toast(e.message); }

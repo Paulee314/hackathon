@@ -487,6 +487,14 @@ class Month:
             "company": "Bayou City Mobility LLC (fictional)",
             "period": [START.isoformat(), END.isoformat()],
             "exceptions": sorted(self.exceptions, key=lambda e: e["id"]),
+            # Not planted errors: things only the owner can answer. Flagging them is right; guessing isn't.
+            "owner_questions": [{
+                "id": "Q1", "type": "meal", "date": "2026-10-11", "amount": "14.32", "accounts": ["amex_platinum"],
+                "truth": "A meal on the business card. Deductible only as a travel meal, away from home overnight or long "
+                         "enough to need sleep or rest, and then at 50% on Schedule C line 24b (IRC 162(a)(2), 274(n)); "
+                         "a local meal is personal (Treas. Reg. 1.262-1(b)(5)). The records can't tell, so the owner "
+                         "is asked, with no suggested answer.",
+            }],
         }
         (out / "expected_exceptions.json").write_text(json.dumps(key, indent=2) + "\n")
         manifest = {

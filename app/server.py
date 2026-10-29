@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import hashlib
 import io
+import json
 import os
 import shutil
 import tempfile
@@ -56,7 +57,7 @@ BUDGET = Budget()
 PER_VISITOR = RateLimit(int(os.environ.get("APP_VISITOR_LIMIT", "30")), 600)    # model requests per 10 minutes
 PER_ADDRESS = RateLimit(int(os.environ.get("APP_ADDRESS_LIMIT", "90")), 600)
 
-app = FastAPI(title="Ride-off phone app", docs_url=None, redoc_url=None)
+app = FastAPI(title="Ryde Off phone app", docs_url=None, redoc_url=None)
 app.mount("/static", StaticFiles(directory=STATIC), name="static")
 
 _books: "OrderedDict[str, tuple]" = OrderedDict()
@@ -150,9 +151,17 @@ def detail(which: str, request: Request):
 
 
 def _review(request: Request) -> Dict:
-    items = books(request).review_items()
+    b = books(request)
+    items = b.review_items()
     items.sort(key=lambda i: i["decision"] is not None)
-    return {"items": items}
+    return {"items": items, "rules": list(b.merchant_rules().values())}
+
+
+@app.get("/api/rules")
+def rules(request: Request):
+    """What this visitor's answers taught the books, in the form agents/categorize.py --rules reads."""
+    return Response(json.dumps({"rules": books(request).merchant_rules()}, indent=2) + "\n", media_type="application/json",
+                    headers={"Content-Disposition": 'attachment; filename="rules.json"'})
 
 
 @app.get("/api/reports/{name}")
@@ -200,7 +209,10 @@ def decide(item_id: str, request: Request, body: Dict = Body(...)):
         if amount is not None:
             s["amount_overrides"][item_id] = amount
     store(request).update(change)
-    return {"home": books(request).home(), "items": _review(request)["items"]}
+    learned = next((r for r in books(request).merchant_rules().values() if r["item"] == item_id), None)
+    return {"home": books(request).home(), **_review(request),
+            "learned": None if not learned else
+            f"Saved. {learned['name']} is {'personal' if learned['says'] == 'personal' else 'business'} from now on, next month too."}
 
 
 @app.delete("/api/review/{item_id}")
@@ -209,7 +221,7 @@ def undo_decision(item_id: str, request: Request):
         s["decisions"].pop(item_id, None)
         s["amount_overrides"].pop(item_id, None)
     store(request).update(change)
-    return {"home": books(request).home(), "items": _review(request)["items"]}
+    return {"home": books(request).home(), **_review(request)}
 
 
 @app.post("/api/review/{item_id}/explain")
