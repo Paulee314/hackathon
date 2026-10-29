@@ -1,9 +1,10 @@
 """Thin client for Meta Model API: chat (text and vision), image generation, speech to text,
-and segmentation (SAM 3.1).
+and segmentation (SAM 3.1). Chat with Muse Spark Open (Meta's open-weights model) goes to Baseten,
+which serves it with the same OpenAI-style API: any model named "meta-models/...".
 
-Standard library only. Reads META_API_KEY from .env (never printed). Retries rate limits and
-server errors with backoff. Every call appends one line to data/usage.jsonl (USAGE_LOG moves it)
-with what it cost, so spend is visible and the hosted app can cap it.
+Standard library only. Reads META_API_KEY and BASETEN_API_KEY from .env (never printed). Retries rate
+limits and server errors with backoff. Every call appends one line to data/usage.jsonl (USAGE_LOG moves
+it) with what it cost, so spend is visible and the hosted app can cap it.
 """
 from __future__ import annotations
 
@@ -20,15 +21,18 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 BASE_URL = "https://api.meta.ai/v1"
+BASETEN_URL = "https://inference.baseten.co/v1"
 ROOT = Path(__file__).resolve().parents[1]
 CHAT_MODEL = "muse-spark-1.3"
+OPEN_MODEL = "meta-models/muse-spark-open-1026"   # the hackathon's Baseten key works only with this name
 IMAGE_MODEL = "muse-image-1.0"
 VOICE_MODEL = "muse-voice-transcribe-1.0"
 SEGMENT_MODEL = "sam-3.1"
 USAGE_LOG = Path(os.environ.get("USAGE_LOG", ROOT / "data" / "usage.jsonl"))
 
 # Meta Model API list prices (Oct 2026), in dollars.
-PER_MILLION = {"muse-spark-1.3": (1.25, 0.15, 4.25)}  # dollars per million: input, cached input, output
+PER_MILLION = {"muse-spark-1.3": (1.25, 0.15, 4.25),   # dollars per million: input, cached input, output
+               OPEN_MODEL: (1.25, 0.15, 4.25)}        # Baseten list price (paid from Baseten credits)
 PER_IMAGE = {IMAGE_MODEL: 0.01, SEGMENT_MODEL: 0.0025}
 PER_AUDIO_HOUR = {VOICE_MODEL: 0.18}
 
@@ -37,18 +41,23 @@ class MetaAPIError(RuntimeError):
     pass
 
 
-def _key() -> str:
+def _key(name: str = "META_API_KEY") -> str:
     env = ROOT / ".env"
     if env.exists():
         for line in env.read_text().splitlines():
-            if line.strip().startswith("META_API_KEY="):
+            if line.strip().startswith(name + "="):
                 value = line.split("=", 1)[1].strip().strip('"').strip("'")
                 if value:
                     return value
-    value = os.environ.get("META_API_KEY", "")
+    value = os.environ.get(name, "")
     if not value:
-        raise MetaAPIError("META_API_KEY is not set in .env")
+        raise MetaAPIError(f"{name} is not set in .env")
     return value
+
+
+def _route(model: str):
+    """(base URL, key name) for a chat model: Muse Spark Open runs on Baseten, the rest on Meta's API."""
+    return (BASETEN_URL, "BASETEN_API_KEY") if model.startswith("meta-models/") else (BASE_URL, "META_API_KEY")
 
 
 def cost_of(row: Dict[str, Any]) -> float:
@@ -100,18 +109,30 @@ def _send(req: urllib.request.Request, timeout: int = 180, attempts: int = 4) ->
     raise MetaAPIError("unreachable")
 
 
-def _post_json(path: str, payload: Dict[str, Any], timeout: int = 180) -> Dict[str, Any]:
-    req = urllib.request.Request(
-        BASE_URL + path, data=json.dumps(payload).encode("utf-8"), method="POST",
-        headers={"Authorization": f"Bearer {_key()}", "Content-Type": "application/json"})
+def _post_json(path: str, payload: Dict[str, Any], timeout: int = 180, base: str = BASE_URL,
+               key_name: str = "META_API_KEY") -> Dict[str, Any]:
+    headers = {"Authorization": f"Bearer {_key(key_name)}", "Content-Type": "application/json"}
+    if base != BASE_URL:
+        headers["User-Agent"] = "ride-off/1.0"
+    req = urllib.request.Request(base + path, data=json.dumps(payload).encode("utf-8"), method="POST", headers=headers)
     return _send(req, timeout)
 
 
-def chat(messages: List[Dict[str, Any]], model: str = CHAT_MODEL, temperature: float = 0.0) -> str:
+def chat(messages: List[Dict[str, Any]], model: str = CHAT_MODEL, temperature: float = 0.0,
+         reasoning_effort: Optional[str] = None) -> str:
+    """The model's answer. Muse Spark Open always reasons first; Baseten returns that reasoning in a
+    separate field (reasoning_content), so the answer here is only the final content."""
+    base, key_name = _route(model)
+    payload: Dict[str, Any] = {"model": model, "messages": messages, "temperature": temperature}
+    if reasoning_effort and base == BASETEN_URL:
+        payload["reasoning_effort"] = reasoning_effort   # low | medium | high | xhigh (Baseten's default)
     start = time.time()
-    body = _post_json("/chat/completions", {"model": model, "messages": messages, "temperature": temperature})
-    _log("chat", model, time.time() - start, body.get("usage"))
-    return body["choices"][0]["message"]["content"]
+    body = _post_json("/chat/completions", payload, timeout=300 if base == BASETEN_URL else 180, base=base,
+                      key_name=key_name)
+    _log("chat", model, time.time() - start, body.get("usage"),
+         extra={"provider": "baseten"} if base == BASETEN_URL else None)
+    msg = body["choices"][0]["message"]
+    return re.sub(r"<think>.*?</think>", "", msg.get("content") or "", flags=re.S).strip()
 
 
 def image_part(path: Path) -> Dict[str, Any]:
@@ -132,8 +153,8 @@ def parse_json(text: str) -> Any:
     return json.loads(text[start:end + 1])
 
 
-def chat_json(messages: List[Dict[str, Any]], model: str = CHAT_MODEL) -> Any:
-    return parse_json(chat(messages, model=model))
+def chat_json(messages: List[Dict[str, Any]], model: str = CHAT_MODEL, reasoning_effort: Optional[str] = None) -> Any:
+    return parse_json(chat(messages, model=model, reasoning_effort=reasoning_effort))
 
 
 def generate_image(prompt: str, size: str = "768x1024", fmt: str = "jpeg") -> bytes:
