@@ -38,6 +38,7 @@ from app import state as st
 from app.assistant import explain, handle
 from app.books import Books
 from app.limits import Budget, RateLimit
+from ingest import bank_feed
 
 ROOT = Path(__file__).resolve().parents[1]
 STATIC = Path(__file__).resolve().parent / "static"
@@ -56,6 +57,10 @@ BOOKS_KEPT = 64              # visitors whose computed books stay in memory
 BUDGET = Budget()
 PER_VISITOR = RateLimit(int(os.environ.get("APP_VISITOR_LIMIT", "30")), 600)    # model requests per 10 minutes
 PER_ADDRESS = RateLimit(int(os.environ.get("APP_ADDRESS_LIMIT", "90")), 600)
+# Plaid Sandbox pulls (free, but each one opens and closes a test connection on our Plaid account)
+BANK_PER_VISITOR = RateLimit(int(os.environ.get("APP_BANK_LIMIT", "5")), 600)
+BANK_PER_ADDRESS = RateLimit(int(os.environ.get("APP_BANK_ADDRESS_LIMIT", "15")), 600)
+BANK_ALL = RateLimit(int(os.environ.get("APP_BANK_HOURLY", "120")), 3600)
 
 app = FastAPI(title="Ryde Off phone app", docs_url=None, redoc_url=None)
 app.mount("/static", StaticFiles(directory=STATIC), name="static")
@@ -377,6 +382,39 @@ async def receipts_read(request: Request):
     store(request).update(change)
     b = books(request)
     return {"pile": b.pile_view(), "home": b.home()}
+
+
+def _bank(request: Request) -> Dict:
+    return {**books(request).bank_view(), "available": bank_feed.configured()}
+
+
+@app.get("/api/bank")
+def bank(request: Request):
+    return _bank(request)
+
+
+@app.post("/api/bank/connect")
+async def bank_connect(request: Request):
+    """Pull the month's bank and cards through Plaid's Sandbox: a test bank loaded with this month's synthetic
+    statements, read back through /transactions/sync. The rows replace the CSV exports for this visitor only."""
+    if not bank_feed.configured():
+        raise HTTPException(503, "Plaid's Sandbox isn't set up on this server.")
+    if not (BANK_PER_VISITOR.allow(request.state.visitor) and BANK_PER_ADDRESS.allow(_address(request))
+            and BANK_ALL.allow("all")):
+        raise HTTPException(429, "That's enough bank pulls for now. Try again in a few minutes.")
+    try:
+        feed = await run_in_threadpool(bank_feed.pull, MONTH)
+    except bank_feed.BankFeedError as e:
+        raise HTTPException(502, str(e))
+    store(request).update(lambda s: s.__setitem__("bank", feed))
+    return {**_bank(request), "home": books(request).home()}
+
+
+@app.delete("/api/bank")
+def bank_disconnect(request: Request):
+    """Back to the CSV exports."""
+    store(request).update(lambda s: s.__setitem__("bank", None))
+    return {**_bank(request), "home": books(request).home()}
 
 
 @app.post("/api/entries/{entry_id}/undo")

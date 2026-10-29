@@ -4,7 +4,8 @@
     python3 -m ingest.load samples/october --from 2026-10-01 --to 2026-10-31 --out data/ledger/transactions.csv
 
 Files are recognized by their columns, not their names. Overlapping exports
-(the same transaction in two files) are loaded once.
+(the same transaction in two files) are loaded once. A bank feed (ingest/bank_feed.py) stands
+in for the exports of the accounts it covers.
 """
 from __future__ import annotations
 
@@ -19,9 +20,13 @@ from .parsers import detect, is_telemetry, read_csv
 from .schema import COLUMNS, Transaction
 
 
-def load_folder(folder, start: Optional[str] = None, end: Optional[str] = None):
+def load_folder(folder, start: Optional[str] = None, end: Optional[str] = None,
+                feed: Optional[List[Transaction]] = None):
+    """feed: rows from a bank connection (ingest.bank_feed.to_transactions). An export whose accounts
+    the feed covers is left out, so a month is never counted twice."""
     files = sorted(p for p in Path(folder).rglob("*") if p.is_file() and p.suffix.lower() == ".csv")
-    kept, report, skipped = {}, [], []
+    covered = {t.account for t in feed or []}
+    kept, report, skipped, batches = {}, [], [], []
     for path in files:
         header, rows = read_csv(path)
         if is_telemetry(header):
@@ -31,6 +36,13 @@ def load_folder(folder, start: Optional[str] = None, end: Optional[str] = None):
             skipped.append(path)
             continue
         txns = parser.parse(path, rows)
+        if covered and txns and {t.account for t in txns} <= covered:
+            report.append((path, parser.name + " (the bank feed instead)", len(txns), 0))
+            continue
+        batches.append((path, parser.name, txns))
+    if feed:
+        batches.append((Path("bank feed"), "bank_feed", list(feed)))
+    for path, name, txns in batches:
         seen_in_file, added = Counter(), 0
         for t in txns:
             k = t.key()
@@ -40,7 +52,7 @@ def load_folder(folder, start: Optional[str] = None, end: Optional[str] = None):
                 continue
             kept[t.txn_id] = t
             added += 1
-        report.append((path, parser.name, len(txns), added))
+        report.append((path, name, len(txns), added))
     ordered = sorted(kept.values(), key=lambda t: (t.date, t.account, t.txn_id))
     return ordered, report, skipped
 

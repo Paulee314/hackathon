@@ -409,3 +409,6 @@ body.preload .sidebar, body.preload .app { transition: none !important; }   /* n
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
+.bank { display: flex; flex-direction: column; gap: 12px; }
+.bank p { margin: 0; }
+.bank-actions { display: flex; flex-direction: column; gap: 10px; }

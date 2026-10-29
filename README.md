@@ -24,6 +24,7 @@ cp .env.example .env                     # then add your Meta Model API key (and
 python3 test_api.py                      # smoke test: text, image generation, receipt reading
 python3 synth/generate_october.py        # writes the synthetic month to samples/october
 python3 -m ingest.load samples/october   # normalizes every export into data/ledger/transactions.csv
+python3 -m ingest.bank_feed samples/october   # optional: the bank and cards through Plaid's Sandbox instead of the CSVs (needs Sandbox keys)
 python3 -m agents.receipts               # Muse Spark reads the receipt photos and attaches each to its card charge
 python3 -m agents.segment samples/october/receipt_pile.jpg   # SAM 3.1 finds each receipt in one photo, Muse Spark reads every crop (needs Pillow)
 python3 -m agents.voice                  # Muse Voice Transcribe + Muse Spark turn voice notes into cash entries
@@ -36,7 +37,7 @@ python3 -m unittest discover tests       # end-to-end checks (offline; model out
 
 Every model call (Meta's API and Baseten) is logged to `data/usage.jsonl` with its token or audio usage, so spend is visible.
 
-Only the model steps need a key: `test_api.py`, `agents.receipts`, `agents.segment` and `agents.voice` (Meta), and `agents.categorize` (Baseten). Everything else runs offline with no key: the tests, `ingest.load`, `agents.close`, `car.profit`, `car.rules` and the app, which read the recorded model output in `tests/fixtures` where a model step hasn't been run.
+Only the model steps need a key: `test_api.py`, `agents.receipts`, `agents.segment` and `agents.voice` (Meta), and `agents.categorize` (Baseten). `ingest.bank_feed` needs Plaid Sandbox keys. Everything else runs offline with no key: the tests, `ingest.load`, `agents.close`, `car.profit`, `car.rules` and the app, which read the recorded model output in `tests/fixtures` where a model step hasn't been run.
 
 ## Phone app
 
@@ -59,6 +60,7 @@ The live demo runs on [Modal](https://modal.com) from `deploy/modal_app.py`: one
 .venv/bin/pip install modal
 .venv/bin/modal setup                                   # once: log in to Modal in the browser
 .venv/bin/modal secret create ride-off-meta META_API_KEY="$(sed -n 's/^META_API_KEY=//p' .env)"   # once; the key is never printed
+.venv/bin/modal secret create ride-off-plaid PLAID_CLIENT_ID="$(sed -n 's/^PLAID_CLIENT_ID=//p' .env)" PLAID_SECRET="$(sed -n 's/^PLAID_SECRET=//p' .env)"   # once; Plaid Sandbox keys
 .venv/bin/modal deploy deploy/modal_app.py              # prints the https URL
 ```
 
@@ -67,6 +69,7 @@ Guards for a public link (`app/limits.py`), checked before any request that call
 - **Daily spend cap**: every model call writes its cost to the usage log (`agents/meta.py` prices tokens, images and audio at Meta's list prices). Once today's total reaches `APP_DAILY_BUDGET` (default $5), model requests return a plain message until tomorrow; everything already on screen keeps working.
 - **Request limits**: 30 model requests per visitor and 90 per network address in any 10 minutes (`APP_VISITOR_LIMIT`, `APP_ADDRESS_LIMIT`). Explanations are cached, and a receipt photo that was already read isn't read again.
 - **Size limits**: photos under 15 MB, voice notes under a minute.
+- **Bank pulls**: Plaid Sandbox pulls are free, but each opens and closes a test connection, so they are limited to 5 per visitor and 15 per network address in 10 minutes, and 120 an hour in all (`APP_BANK_LIMIT`, `APP_BANK_ADDRESS_LIMIT`, `APP_BANK_HOURLY`).
 - **Clean-up**: visitors idle for 2 days are removed (`APP_KEEP_DAYS`), and at most 500 are kept (`APP_MAX_VISITORS`).
 
 After judging, set `MIN_CONTAINERS = 0` in `deploy/modal_app.py` and deploy again, or run `modal app stop ride-off`.
@@ -96,6 +99,19 @@ The month also has:
 ## How ingestion works
 
 Each export is recognized by its columns, not its file name, and turned into one record shape (`ingest/schema.py`). Amounts are signed from the account's point of view, and platform balances act as clearing accounts, so a payout is a minus in `uber_balance` and a plus in checking. Overlapping exports are loaded once.
+
+## Bank feed through Plaid (Sandbox)
+
+The bank and card rows can come through [Plaid](https://plaid.com) instead of the CSV exports. A real driver would connect their bank with Plaid Link. This demo uses Plaid's Sandbox, a test environment with no real banks and no real money, whose custom test user holds whatever accounts and transactions it is given. So `ingest/bank_feed.py` loads a Sandbox test bank (First Platypus Bank) with the demo month's own synthetic statements (Chase checking, the Chase Ink card and the Amex card), signs in through the Sandbox API, reads every transaction back with `/transactions/sync` (the call a live connection uses) and the balances with `/accounts/get`, then removes the test connection. The rows go through the same cleanup as the CSV parsers, and Plaid's own category for each row comes along as a hint.
+
+```bash
+.venv/bin/python -m ingest.bank_feed samples/october      # pull, then compare with the CSVs row by row
+.venv/bin/python -m agents.close samples/october --feed tests/fixtures/plaid_feed.json   # close the month from a saved pull
+```
+
+On the demo month the pull matches the CSV exports row for row (date, amount, description and payee), the checking balance Plaid reports equals the statement's closing balance, and the close agent catches the same six problems. Plaid's Sandbox leaves out rows dated after the day of the pull, so a pull made before Oct 31 is missing the month's last few rows; the comparison and the app say how many, and the checking tie-out flags the gap until they post. In the phone app, **Settings > Bank and cards > Connect the bank through Plaid (Sandbox)** switches that visitor's books to the feed, and **Go back to the CSV exports** switches back. `tests/fixtures/plaid_feed.json` is a recorded pull, so the tests run offline.
+
+Sandbox only: the address is fixed to `sandbox.plaid.com`, so production keys and real accounts can't be used from here. The keys come from `PLAID_CLIENT_ID` and `PLAID_SECRET` in `.env` (a Modal Secret when hosted) and are never printed or stored, and the access token lives only for the length of one pull.
 
 ## How receipts and voice notes work
 

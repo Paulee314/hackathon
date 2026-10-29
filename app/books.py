@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import json
 import re
-from collections import OrderedDict
+from collections import Counter, OrderedDict
 from datetime import date, timedelta
 from decimal import Decimal
 from pathlib import Path
@@ -23,6 +23,7 @@ from agents.voice import to_transaction
 from car import rules as ride_rules
 from car.profit import ride_profits, summary as ride_summary
 from car.telemetry import load_drives, load_offers, load_profile, load_tires
+from ingest import bank_feed
 from ingest.load import load_folder
 from ingest.schema import Transaction
 
@@ -138,7 +139,9 @@ class Books:
         # True in the app: receipts enter the books only when the driver snaps them (SAM 3.1 finds
         # each slip, Muse Spark reads it). False reads them from the batch run or the test fixture.
         self.receipts_from_photo = receipts_from_photo
-        self.txns, _, _ = load_folder(self.month_dir)
+        # A Plaid Sandbox pull the visitor connected in Settings stands in for the bank and card exports.
+        self.bank = state.get("bank")
+        self.txns, _, _ = load_folder(self.month_dir, feed=bank_feed.to_transactions(self.bank) if self.bank else None)
         self.first_day = date.fromisoformat(min(t.date for t in self.txns))
         self.last_day = date.fromisoformat(max(t.date for t in self.txns))
         self.receipts = self._receipts()
@@ -183,6 +186,23 @@ class Books:
             n["parsed_effective"] = parsed
             n["txn"] = to_transaction(parsed, n["file"])
         return notes
+
+    def bank_view(self) -> Dict:
+        """Where the bank and card rows come from, for Settings."""
+        if not self.bank:
+            return {"connected": False}
+        feed = self.bank
+        counts = Counter(t["account_id"] for t in feed["transactions"])
+        accounts = [{"label": account_name(a["books_account"]), "name": a["name"], "mask": a["mask"],
+                     "rows": counts[a["account_id"]]} for a in feed["accounts"] if a.get("books_account")]
+        out = {"connected": True, "institution": feed["institution"], "pulled_at": feed["pulled_at"],
+               "seconds": feed.get("seconds"), "rows": len(feed["transactions"]), "accounts": accounts,
+               "later": len(bank_feed.compare(self.month_dir, feed)["not_posted_yet"])}
+        tie = next((a for a in feed["accounts"] if a.get("statement") and a.get("balance") is not None), None)
+        if tie:
+            plaid, closing = Decimal(str(tie["balance"])).quantize(CENT), Decimal(tie["statement"]["closing"])
+            out["balance"] = {"plaid": money(plaid), "statement": money(closing), "ok": plaid == closing}
+        return out
 
     def app_entries(self) -> List[Dict]:
         return [e for e in self.state.get("entries", []) if not e.get("undone")]

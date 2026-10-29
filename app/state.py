@@ -1,5 +1,5 @@
 """What each visitor did in the app: review decisions, cash logged by voice or text, cached
-explanations, and the receipt photo they snapped.
+explanations, the receipt photo they snapped, and the Plaid Sandbox pull if they connected one.
 
 Every browser gets its own copy of the demo month, so several judges can use the hosted app at
 once without seeing each other's answers. A visitor's state lives in
@@ -40,7 +40,8 @@ def valid_id(value: Optional[str]) -> bool:
 
 
 def empty() -> Dict:
-    return {"v": 0, "decisions": {}, "entries": [], "amount_overrides": {}, "explanations": {}, "pile": None}
+    return {"v": 0, "decisions": {}, "entries": [], "amount_overrides": {}, "explanations": {}, "pile": None,
+            "bank": None}
 
 
 def _lock_for(path: Path) -> threading.Lock:

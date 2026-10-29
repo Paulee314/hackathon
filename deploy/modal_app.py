@@ -1,8 +1,8 @@
 """Host the Ryde Off phone app on Modal, so judges (and the iPhone recording) get an https link.
 
 One container, kept warm, serves the FastAPI app. Visitor state and the usage log live on a Modal
-Volume, so a restart doesn't wipe them or reset the daily spend cap. The Meta key comes from a
-Modal Secret; .env, data/ and .venv are never uploaded.
+Volume, so a restart doesn't wipe them or reset the daily spend cap. The Meta key and the Plaid
+Sandbox keys come from Modal Secrets; .env, data/ and .venv are never uploaded.
 
     .venv/bin/pip install modal
     .venv/bin/modal setup                         # once: log in to Modal in the browser
@@ -27,11 +27,12 @@ image = (
 )
 volume = modal.Volume.from_name("ride-off-data", create_if_missing=True)
 meta = modal.Secret.from_name("ride-off-meta")   # holds the Meta key as META_API_KEY
+plaid = modal.Secret.from_name("ride-off-plaid")   # Plaid Sandbox keys: PLAID_CLIENT_ID, PLAID_SECRET
 app = modal.App("ride-off", image=image)
 
 
 @app.function(
-    secrets=[meta],
+    secrets=[meta, plaid],
     volumes={"/data": volume},
     min_containers=MIN_CONTAINERS,
     max_containers=1,   # one container, so visitor state and the spend cap live in one place

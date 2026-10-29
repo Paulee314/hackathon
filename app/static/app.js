@@ -854,8 +854,61 @@ function openSettings() {
     el('p', { class: 'muted', text: 'Please don’t upload real receipts or say real account details. What you send goes to Meta’s models, and Meta may use it to improve them.' }),
     el('div', { class: 'section-title' }, el('span', { text: 'Meta models doing the work' })),
     rows([['Muse Spark', 'Reads receipts, books cash, answers'], ['Muse Spark Open', 'Sorted the month onto Schedule C lines (open weights)'], ['SAM 3.1', 'Finds each receipt in a photo'], ['Muse Voice Transcribe', 'Hears what you say'], ['Muse Image', 'Made the demo receipts']]),
+    ...bankSection(),
     el('div', { class: 'actions' }, resetBtn),
   ]);
+}
+
+/* ---------- settings: where the bank and card rows come from (CSV exports, or Plaid's Sandbox) ---------- */
+const CONNECT_LABEL = 'Connect the bank through Plaid (Sandbox)';
+function bankSection() {
+  const box = el('div', { class: 'bank' }, el('p', { class: 'muted', text: 'Checking the bank connection…' }));
+  showBank(box);
+  return [el('div', { class: 'section-title' }, el('span', { text: 'Bank and cards' })), box];
+}
+async function showBank(box, b) {
+  try { b = b || await api('/api/bank'); } catch (e) { box.replaceChildren(el('p', { class: 'muted', text: e.message })); return; }
+  box.replaceChildren(...(b.connected ? bankConnected(b, box) : bankNotConnected(b, box)).filter(Boolean));
+}
+function bankNotConnected(b, box) {
+  const btn = el('button', { type: 'button', class: 'btn', text: CONNECT_LABEL, disabled: !b.available });
+  btn.addEventListener('click', async () => {
+    btn.disabled = true;
+    btn.textContent = 'Signing in to the test bank…';
+    try {
+      const r = await api('/api/bank/connect', { method: 'POST' });
+      renderHome(r.home);
+      toast(`Pulled ${r.rows} transactions through Plaid`);
+      showBank(box, r);
+    } catch (e) {
+      toast(e.message);
+      btn.disabled = false;
+      btn.textContent = CONNECT_LABEL;
+    }
+  });
+  return [
+    rows([['Bank and card rows', 'Statement exports (CSV)']]),
+    el('p', { class: 'muted', text: b.available
+      ? 'Plaid’s Sandbox is a test bank with no real money in it. Connecting loads it with this month’s made-up statements, signs in, and pulls every transaction back through Plaid, the way a driver’s own bank would connect.'
+      : 'Plaid isn’t set up on this server.' }),
+    el('div', { class: 'bank-actions' }, btn),
+  ];
+}
+function bankConnected(b, box) {
+  const pulled = new Date(b.pulled_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+  const back = el('button', { type: 'button', class: 'btn', text: 'Go back to the CSV exports' });
+  back.addEventListener('click', async () => {
+    try { const r = await api('/api/bank', { method: 'DELETE' }); renderHome(r.home); toast('Back to the CSV exports'); showBank(box, r); } catch (e) { toast(e.message); }
+  });
+  const list = [['Bank and card rows', `Plaid Sandbox, ${b.institution}`], ['Pulled', `${pulled}, in ${b.seconds} seconds`],
+    ...b.accounts.map((a) => [`${a.label} ending ${a.mask}`, `${a.rows} transactions`])];
+  if (b.balance) list.push(['Checking balance, from Plaid', b.balance.ok ? `${b.balance.plaid}, same as the statement` : `${b.balance.plaid} (the statement says ${b.balance.statement})`]);
+  return [
+    rows(list),
+    b.later ? el('p', { class: 'muted', text: `${b.later} transaction${b.later === 1 ? '' : 's'} dated after the pull ${b.later === 1 ? 'isn’t' : 'aren’t'} in the bank yet.` }) : null,
+    el('p', { class: 'muted', text: 'A test bank holding this month’s made-up statements. The books now read these rows instead of the CSV files; only this browser sees the switch.' }),
+    el('div', { class: 'bank-actions' }, back),
+  ];
 }
 
 /* ---------- wiring ---------- */

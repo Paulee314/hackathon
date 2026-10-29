@@ -290,9 +290,14 @@ def score(found: List[Dict], expected_path: Path) -> Dict:
 def main():
     ap = argparse.ArgumentParser(description="Close the month: checks, exceptions and the score.")
     ap.add_argument("month", nargs="?", default="samples/october")
+    ap.add_argument("--feed", help="a saved Plaid Sandbox pull (ingest/bank_feed.py) in place of the bank and card CSVs")
     args = ap.parse_args()
     month = Path(args.month)
-    txns, _, _ = load_folder(month)
+    feed = None
+    if args.feed:
+        from ingest.bank_feed import to_transactions
+        feed = to_transactions(json.loads(Path(args.feed).read_text()))
+    txns, _, _ = load_folder(month, feed=feed)
     out = run(txns, month)
     for c in out["checks"]:
         print(f"  {'pass' if c['ok'] else 'FAIL'}  {c['title']}: {c['detail']}")
