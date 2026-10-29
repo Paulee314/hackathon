@@ -36,6 +36,8 @@ python3 -m unittest discover tests       # end-to-end checks (offline; model out
 
 Every model call (Meta's API and Baseten) is logged to `data/usage.jsonl` with its token or audio usage, so spend is visible.
 
+Only the model steps need a key: `test_api.py`, `agents.receipts`, `agents.segment` and `agents.voice` (Meta), and `agents.categorize` (Baseten). Everything else runs offline with no key: the tests, `ingest.load`, `agents.close`, `car.profit`, `car.rules` and the app, which read the recorded model output in `tests/fixtures` where a model step hasn't been run.
+
 ## Phone app
 
 ```bash

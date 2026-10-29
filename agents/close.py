@@ -300,11 +300,16 @@ def main():
     for e in out["exceptions"]:
         print(f"  {e['date']}  {e['type']:<24} {e['title']}")
     found = [{"date": e["date"], "amount": e["amount"], "title": e["title"]} for e in out["exceptions"]]
-    receipts = ROOT / "data" / "ledger" / "receipts.json"
-    if receipts.exists():
+    # the receipt readings: your own run of agents.receipts, or the recorded one (as the app does), so a fresh
+    # clone with no key scores the same; the checks on them are redone in code
+    receipts = next((p for p in (ROOT / "data" / "ledger" / "receipts.json",
+                                 ROOT / "tests" / "fixtures" / "receipts_extracted.json") if p.exists()), None)
+    if receipts is not None:
+        from agents.receipts import assess
         for r in json.loads(receipts.read_text()):
-            if r.get("flags") and r.get("match"):
-                found.append({"date": r["match"]["date"], "amount": r["match"]["amount"], "title": f"receipt: {r['file']}"})
+            a = r if "flags" in r and "match" in r else assess(r["extracted"], txns)
+            if a.get("flags") and a.get("match"):
+                found.append({"date": a["match"]["date"], "amount": a["match"]["amount"], "title": f"receipt: {r['file']}"})
     key = month / "expected_exceptions.json"
     if key.exists():
         s = score(found, key)
