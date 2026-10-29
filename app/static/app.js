@@ -324,7 +324,6 @@ function reviewNodes() {
   }
   const card = el('div', { class: 'card-in', style: 'display:flex;flex-direction:column;gap:14px' },
     el('span', { class: 'pill', text: it.tag }), title(it.title), el('p', { text: it.body }),
-    it.basis ? el('p', { class: 'muted basis', text: it.basis }) : null,
     ...evidence, it.rows.length ? rows(it.rows) : null,
     el('div', { class: 'suggestion' }, miniCloud(),
       el('span', {}, el('b', { text: it.suggestion ? it.suggestion.label : 'The records can’t tell. Which was it?' }),
@@ -343,6 +342,11 @@ function reviewNodes() {
     explainBtn.disabled = false;
     explainBtn.textContent = 'Explain';
   });
+  // Opt-in only: an answer covers this one charge unless you tick this (the same merchant can be business one day
+  // and personal the next).
+  it._remember = it.remember ? el('input', { type: 'checkbox', style: 'width:20px;height:20px;accent-color:#FF8CC6;margin:0' }) : null;
+  const rememberRow = it._remember ? el('label', { style: 'display:flex;align-items:center;gap:10px;font-size:15px;padding:2px 4px;cursor:pointer' },
+    it._remember, el('span', { text: `Every time at ${it.remember.name}` })) : null;
   const actions = it.suggestion
     ? el('div', { class: 'actions' },
       el('button', { type: 'button', class: 'btn primary', text: 'Approve', onclick: () => decide(it, it.suggestion.choice) }),
@@ -353,11 +357,12 @@ function reviewNodes() {
       el('div', { class: 'two' }, it.choices.map((c) =>
         el('button', { type: 'button', class: 'btn tall', text: c.label, onclick: () => decide(it, c.choice) }))),
       explainBtn);
-  return [progress, card, actions];
+  return [progress, card, rememberRow, actions];
 }
 
 async function decide(it, choice, amount) {
   const body = { choice };
+  if (it._remember && it._remember.checked) body.remember = true;
   if (choice === 'amount') {
     const n = parseFloat(String(amount || '').replace(/[$,\s]/g, ''));
     if (!(n > 0)) { toast('Type the amount, like 9.99.'); return; }
@@ -387,9 +392,9 @@ function doneNodes() {
       el('button', { type: 'button', text: 'Undo', onclick: () => undoDecision(it) }));
   }));
   const learned = (review.rules || []).length ? [
-    el('div', { class: 'section-title' }, el('span', { text: 'What your answers taught the books' })),
+    el('div', { class: 'section-title' }, el('span', { text: 'Set for every time' })),
     rows(review.rules.map((r) => [r.name, r.says === 'personal' ? 'Personal, every time' : 'Business, every time'])),
-    el('p', { class: 'muted', text: 'Next month these are set before the categorizer sees them.' }),
+    el('p', { class: 'muted', text: 'Next month these are set before the categorizer sees them. Undo the answer to clear one.' }),
   ] : [];
   return [title(review.items.length ? 'All reviewed' : 'Nothing to review'),
     el('p', { text: review.items.length ? 'Each answer is saved with the receipt or note behind it.' : 'Every receipt and note checks out.' }),

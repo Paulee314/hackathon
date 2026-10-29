@@ -204,15 +204,17 @@ def decide(item_id: str, request: Request, body: Dict = Body(...)):
         if not 0 < amount < 100000:
             raise HTTPException(400, "The amount has to be more than zero.")
 
+    remember = bool(body.get("remember")) and bool(items[item_id].get("remember")) and choice in ("personal", "business")
+
     def change(s):
-        s["decisions"][item_id] = {"choice": choice}
+        s["decisions"][item_id] = {"choice": choice, **({"remember": True} if remember else {})}
         if amount is not None:
             s["amount_overrides"][item_id] = amount
     store(request).update(change)
     learned = next((r for r in books(request).merchant_rules().values() if r["item"] == item_id), None)
     return {"home": books(request).home(), **_review(request),
             "learned": None if not learned else
-            f"Saved. {learned['name']} is {'personal' if learned['says'] == 'personal' else 'business'} from now on, next month too."}
+            f"Saved. {learned['name']} is {learned['says']} every time, next month too."}
 
 
 @app.delete("/api/review/{item_id}")

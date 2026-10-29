@@ -46,15 +46,11 @@ LOAN_WORDS = ("TESLA FINANCE",)
 PLATFORM_WORDS = ("UBER", "LYFT", "TURO")
 SECONDS_PER_ITEM = 40
 
-# Meals: deductible only as travel, away from home overnight (or long enough to need sleep or rest), and then at
-# 50%; a meal at home, even between rides, is personal. The app asks rather than guesses (Paul, Oct 29).
-TRAVEL_MEALS = "Travel meals, 50% deductible"
-MEALS_KEPT_OUT = "Travel meals, the nondeductible half"
-MEAL_GUIDE = ("A meal is a business cost only when work keeps you away from home overnight, or long enough that you "
-              "need sleep or rest. Then half of it is deductible. A meal between rides in your own city is personal, "
-              "even on a work day.")
-MEAL_BASIS = ("IRC §162(a)(2) and §274(n)(1): travel meals away from home, 50%, Schedule C line 24b. "
-              "Treas. Reg. §1.262-1(b)(5): other meals are personal. IRS Publication 463.")
+# Meals: the driver says business or personal (Paul, Oct 29: "just have a card that says is it business or not").
+# A business meal counts at 50% on Schedule C line 24b (IRC §274(n)(1)); whether a meal qualifies (travel away from
+# home overnight, §162(a)(2); local meals are personal, Treas. Reg. §1.262-1(b)(5)) is the driver's call.
+BUSINESS_MEALS = "Business meals, half counted"
+MEALS_KEPT_OUT = "Business meals, the half that doesn't count"
 
 
 def money(d) -> str:
@@ -209,6 +205,7 @@ class Books:
         if self._items is not None:
             return self._items
         items = []
+        by_id = {t.txn_id: t for t in self.txns}
         holding = {"possible_duplicate", "deposit_without_payout", "unidentified_income"}
         for e in sorted(self.close["exceptions"], key=lambda e: e["date"]):
             first = e["accounts"][0]
@@ -228,26 +225,30 @@ class Books:
             amount = Decimal(str(e.get("total", 0))).quantize(CENT)
             lines = [i.get("description", "") for i in e.get("items", [])]
             listed = ", ".join(lines[:3]) + (f" and {len(lines) - 3} more" if len(lines) > 3 else "")
+            charge = by_id.get(m["txn_id"]) if m else None
+            # "every time at this merchant" is offered, never assumed: the same merchant can be business one day
+            # and personal the next (Paul, Oct 29)
+            remember = {"merchant": merchant_key(charge), "name": merchant} if charge is not None else None
             if e.get("kind") in ("personal", "mixed") and is_meal(e):
                 where = account_name(m["account"]) if m else "card"
                 half = (amount / 2).quantize(CENT)
                 items.append({
-                    "id": "receipt:" + stem, "source": "receipt", "amount": str(amount),
+                    "id": "receipt:" + stem, "source": "receipt", "amount": str(amount), "meal": True,
                     "tag": f"{where}, {short_date(m['date'] if m else e['date'])}",
-                    "title": f"A meal at {merchant}: were you away overnight for work?",
-                    "body": f"{MEAL_GUIDE} On the receipt: {listed}.",
-                    "basis": MEAL_BASIS,
-                    "rows": [[f"Charge on the {where}", money(amount)], ["If you were away overnight", f"{money(half)} deductible"],
-                             ["If it was a local meal", "Personal, kept out"]],
+                    "title": f"A meal at {merchant}: business or personal?",
+                    "body": f"On the receipt: {listed}.",
+                    "rows": [[f"Charge on the {where}", money(amount)], ["If business", f"{money(half)} counts (meals count half)"],
+                             ["If personal", "Kept out"]],
                     "suggestion": None,   # the receipt can't tell; you can
-                    "choices": [{"choice": "personal", "label": "Local meal, personal"},
-                                {"choice": "travel_meal", "label": "Away overnight for work"}],
+                    "choices": [{"choice": "business", "label": "Business"}, {"choice": "personal", "label": "Personal"}],
+                    "remember": remember,
                     "evidence": {"receipt": r["file"]}, "found_by": "Muse Spark read the receipt",
                     "holds": [m["txn_id"]] if m else [],
                 })
             elif e.get("kind") in ("personal", "mixed"):
                 where = account_name(m["account"]) if m else "card"
                 items.append({
+                    "remember": remember,
                     "id": "receipt:" + stem, "source": "receipt", "amount": str(amount),
                     "tag": f"{where}, {short_date(m['date'] if m else e['date'])}",
                     "title": f"{merchant} looks personal",
@@ -319,10 +320,10 @@ class Books:
             for h in it["holds"]:
                 if kind == "receipt" and choice == "personal":
                     override[h] = ("other", "Personal, kept out")
+                elif kind == "receipt" and choice == "business" and it.get("meal"):
+                    override[h] = ("expense", BUSINESS_MEALS, Decimal("0.5"))   # half counts; the other half is kept out
                 elif kind == "receipt" and choice == "business":
                     override[h] = ("expense", "")   # counts, even if the merchant usually looks personal
-                elif kind == "receipt" and choice == "travel_meal":
-                    override[h] = ("expense", TRAVEL_MEALS, Decimal("0.5"))   # half counts; the other half is kept out
                 elif kind == "possible_duplicate" and choice == "duplicate":
                     override[h] = ("other", "Duplicate charges, disputed")
                 elif kind == "deposit_without_payout":
@@ -336,36 +337,40 @@ class Books:
 
     # ---- what your answers teach the books ------------------------------------------------
     def merchant_rules(self) -> "OrderedDict[str, Dict]":
-        """Corrections become rules: a receipt you called personal or business is treated that way from then on,
-        for every charge at that merchant, and the next time the categorizer runs (agents/categorize.py --rules)
-        it is set before the model sees it. A meal you were away overnight for is about that one trip, so only
-        "personal" becomes a rule there."""
+        """Merchants you set for every time. Nothing is learned on its own: a card's answer covers that one charge
+        unless you tick "Every time at ..." (Paul, Oct 29: the same merchant can be business out of town and
+        personal at home). A merchant you set is treated that way for every charge there, and the next time the
+        categorizer runs (agents/categorize.py --rules) it is set before the model sees it."""
         if self._rules is not None:
             return self._rules
-        by_id = {t.txn_id: t for t in self.all_txns()}
         rules: "OrderedDict[str, Dict]" = OrderedDict()
         for it in self.review_items():
-            choice = (it["decision"] or {}).get("choice")
-            if it["source"] != "receipt" or choice not in ("personal", "business") or not it["holds"]:
+            d = it["decision"] or {}
+            if not d.get("remember") or not it.get("remember") or d.get("choice") not in ("personal", "business"):
                 continue
-            t = by_id.get(it["holds"][0])
-            if t is None:
-                continue
-            key = merchant_key(t)
+            key = it["remember"]["merchant"]
             model = (self.categories.get(key) or {}).get("treatment")
-            rules[key] = {"merchant": key, "says": choice, "item": it["id"],
-                          "name": re.sub(r"\s+\d+$", "", key).title(),
-                          "corrected_the_model": model is not None and (model == "personal") != (choice == "personal")}
+            rules[key] = {"merchant": key, "says": d["choice"], "item": it["id"], "name": it["remember"]["name"],
+                          "meal": bool(it.get("meal")),
+                          "corrected_the_model": model is not None and (model == "personal") != (d["choice"] == "personal")}
         self._rules = rules
         return rules
 
     def treatment(self, t: Transaction) -> Optional[str]:
-        """How the books treat a charge's merchant: your answer on a review card wins over the categorizer's label."""
+        """How the books treat a charge's merchant: a merchant you set for every time wins over the categorizer."""
         key = merchant_key(t)
         rule = self.merchant_rules().get(key)
         if rule:
             return "personal" if rule["says"] == "personal" else "expense"
         return (self.categories.get(key) or {}).get("treatment")
+
+    def _is_meal(self, t: Transaction) -> bool:
+        """A business meal counts half: a merchant you set as a business meal, or one the categorizer put on line 24b."""
+        key = merchant_key(t)
+        rule = self.merchant_rules().get(key)
+        if rule:
+            return rule["meal"] and rule["says"] == "business"
+        return (self.categories.get(key) or {}).get("schedule_c_line") == "24b Meals"
 
     def checks(self) -> List[Dict]:
         items = self.review_items()
@@ -393,7 +398,9 @@ class Books:
                 role, group = ov[0], ov[1] or group
                 share = ov[2] if len(ov) > 2 else None
             elif role == "expense" and self.treatment(t) == "personal":
-                role, group = "other", "Personal, kept out"   # your earlier answer, or the categorizer, says personal
+                role, group = "other", "Personal, kept out"   # a merchant you set, or the categorizer, says personal
+            elif role == "expense" and self._is_meal(t):
+                group, share = BUSINESS_MEALS, Decimal("0.5")
             if role == "income":
                 yield "income", group, t.amount, t
             elif role == "expense" and share is not None:
@@ -556,7 +563,7 @@ class Books:
             is_vehicle = False
             if t is None or group == "Platform fees":
                 line = "10 Commissions and fees"
-            elif group == TRAVEL_MEALS:
+            elif group == BUSINESS_MEALS:
                 line = "24b Meals"
             elif cat and cat.get("schedule_c_line"):
                 line, is_vehicle = cat["schedule_c_line"], cat["treatment"] == "vehicle"
