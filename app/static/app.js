@@ -838,7 +838,7 @@ function openSettings() {
     rows([['Today, in the app', today], ['Month', home ? home.month : ''], ['Your copy', 'Only this browser sees it']]),
     el('p', { class: 'muted', text: 'Please don’t upload real receipts or say real account details. What you send goes to Meta’s models, and Meta may use it to improve them.' }),
     el('div', { class: 'section-title' }, el('span', { text: 'Meta models doing the work' })),
-    rows([['Muse Spark', 'Reads receipts, books cash, answers'], ['SAM 3.1', 'Finds each receipt in a photo'], ['Muse Voice Transcribe', 'Hears what you say'], ['Muse Image', 'Made the demo receipts']]),
+    rows([['Muse Spark', 'Reads receipts, books cash, answers'], ['Muse Spark Open', 'Sorted the month onto Schedule C lines (open weights)'], ['SAM 3.1', 'Finds each receipt in a photo'], ['Muse Voice Transcribe', 'Hears what you say'], ['Muse Image', 'Made the demo receipts']]),
     el('div', { class: 'actions' }, resetBtn),
   ]);
 }

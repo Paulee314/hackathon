@@ -11,27 +11,27 @@ An agentic month-end close for gig-economy operators: rideshare drivers, Turo ho
 | Muse Spark 1.3 (Model API) | Reads receipt photos; turns voice-note transcripts into cash entries; reconciles payouts to deposits |
 | SAM 3.1 (Model API) | Finds every receipt in one photo of the month's pile, so each can be cropped and read |
 | Muse Voice Transcribe | Transcribes spoken notes about cash spending |
-| Muse Spark Open (open weights) | Categorizes transactions to Schedule C lines |
+| Muse Spark Open (open weights, served by Baseten) | Categorizes spending to Schedule C lines; matches Muse Spark 1.3 on all 22 merchants in the demo month |
 | Muse Image | Generates the synthetic receipts in the public demo dataset, and the car seat they are photographed on |
 
 ## Setup
 
 ```bash
-cp .env.example .env                     # then add your Meta Model API key to .env
+cp .env.example .env                     # then add your Meta Model API key (and a Baseten key, for the categorizer) to .env
 python3 test_api.py                      # smoke test: text, image generation, receipt reading
 python3 synth/generate_october.py        # writes the synthetic month to samples/october
 python3 -m ingest.load samples/october   # normalizes every export into data/ledger/transactions.csv
 python3 -m agents.receipts               # Muse Spark reads the receipt photos and attaches each to its card charge
 python3 -m agents.segment samples/october/receipt_pile.jpg   # SAM 3.1 finds each receipt in one photo, Muse Spark reads every crop (needs Pillow)
 python3 -m agents.voice                  # Muse Voice Transcribe + Muse Spark turn voice notes into cash entries
-python3 -m agents.categorize             # Muse Spark maps every merchant to a Schedule C line
+python3 -m agents.categorize             # Muse Spark Open (on Baseten) maps every merchant to a Schedule C line
 python3 -m agents.close                  # tie-out checks, exceptions, and the score against the answer key
 python3 -m car.profit                    # what each ride really paid after car costs
 python3 -m car.rules                     # replays ride rules ("skip pickups over 3 miles") on every offer in the month
 python3 -m unittest discover tests       # end-to-end checks (offline; model output is replayed from tests/fixtures)
 ```
 
-Every Meta API call is logged to `data/usage.jsonl` with its token or audio usage, so spend is visible.
+Every model call (Meta's API and Baseten) is logged to `data/usage.jsonl` with its token or audio usage, so spend is visible.
 
 ## Phone app
 
@@ -116,7 +116,7 @@ Each opens in the app with a draft or final status and downloads as CSV (`/api/r
 
 What it can't explain becomes a review card, biggest amount first. Each answer has a defined effect on the books (a Lyft shortfall booked as a fee adds $5.00 of fees; a duplicate charge left out stays out), and each tie-out check reads Passes, Answered or Needs you. Where the records can't tell (a Zelle from a person), the card asks instead of suggesting.
 
-`agents/categorize.py` sends each merchant once to Muse Spark, which labels it with a Schedule C line and a treatment: business expense, vehicle cost (counts only under the actual-expense method), personal, transfer, loan payment or owner draw. Totals are always added up in code. The plan is to move this step to Muse Spark Open, the open-weights model, hosted privately.
+`agents/categorize.py` sends each merchant once to Muse Spark Open, Meta's open-weights model, served by Baseten. It labels each one with a Schedule C line and a treatment: business expense, vehicle cost (counts only under the actual-expense method), personal, transfer, loan payment or owner draw. Totals are always added up in code. Because the weights are open, a firm could run this step on its own hardware and keep client data in-house. On the demo month it matches Muse Spark 1.3 on all 22 merchants, treatment and Schedule C line ($5,612.11 of spending), in two runs; the one difference is a business-line call (DetailPro Supply, $38.62: Turo rather than shared). `scripts/compare_categorizers.py` reruns the comparison. The app reads the saved labels, so the hosted demo makes no Baseten calls.
 
 `car/profit.py` ties each accepted ride offer to the drive to the pickup and the trip itself, by time and distance, since Tessie drives carry no trip ids (all 134 rides link correctly against the answer key). Each ride's true profit is its fare and tip minus electricity, wear on the car and tire wear, with the unpaid pickup miles charged to the ride.
 

@@ -1,4 +1,7 @@
-"""Map every kind of spending to a Schedule C line, once per merchant, with Muse Spark.
+"""Map every kind of spending to a Schedule C line, once per merchant, with Muse Spark Open: Meta's
+open-weights model, served by Baseten (needs BASETEN_API_KEY in .env; --model muse-spark-1.3 uses Meta's API).
+Open weights mean a firm could run this step on its own hardware and keep client data in-house. On the demo
+month it matches Muse Spark 1.3 on all 22 merchants (scripts/compare_categorizers.py).
 
     python3 -m agents.categorize samples/october
 
@@ -17,7 +20,7 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Dict, List
 
-from agents.meta import CHAT_MODEL, chat_json
+from agents.meta import OPEN_MODEL, chat_json
 from ingest.load import load_folder
 from ingest.schema import Transaction
 
@@ -70,7 +73,7 @@ def spending(txns: List[Transaction]) -> "OrderedDict[str, Dict]":
     return groups
 
 
-def categorize(txns: List[Transaction], model: str = CHAT_MODEL) -> Dict[str, Dict]:
+def categorize(txns: List[Transaction], model: str = OPEN_MODEL) -> Dict[str, Dict]:
     groups = spending(txns)
     listing = "\n".join(f"- {k} | {g['count']}x, {g['total']:.2f} total | e.g. \"{g['example']}\" | {g['kind']} on {g['account']}"
                         + (f" | bank says {g['bank_category']}" if g["bank_category"] else "") for k, g in groups.items())
@@ -89,7 +92,7 @@ def categorize(txns: List[Transaction], model: str = CHAT_MODEL) -> Dict[str, Di
 def main():
     ap = argparse.ArgumentParser(description="Map spending to Schedule C lines.")
     ap.add_argument("month", nargs="?", default="samples/october")
-    ap.add_argument("--model", default=CHAT_MODEL)
+    ap.add_argument("--model", default=OPEN_MODEL)
     ap.add_argument("--out", default=str(ROOT / "data" / "ledger" / "categories.json"))
     args = ap.parse_args()
     txns, _, _ = load_folder(Path(args.month))

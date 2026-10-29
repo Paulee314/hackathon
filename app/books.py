@@ -327,7 +327,7 @@ class Books:
             if t.txn_id in override:
                 role, group = override[t.txn_id][0], override[t.txn_id][1] or group
             elif role == "expense" and (self.categories.get(merchant_key(t)) or {}).get("treatment") == "personal":
-                role, group = "other", "Personal, kept out"   # Muse Spark labelled the merchant personal
+                role, group = "other", "Personal, kept out"   # the categorizer (Muse Spark Open) labelled the merchant personal
             if role == "income":
                 yield "income", group, t.amount, t
             elif role == "expense":
@@ -473,11 +473,11 @@ class Books:
         return out
 
     def schedule_c(self) -> Optional[Dict]:
-        """Spending rolled up by Schedule C line, from Muse Spark's labels, actual-expense method."""
+        """Spending rolled up by Schedule C line, from the categorizer's labels (Muse Spark Open), actual-expense method."""
         if not self.categories:
             return None
         # The same amounts as the profit (booked), so the two always agree; each is placed on the
-        # line Muse Spark gave its merchant.
+        # line the categorizer gave its merchant.
         lines, vehicle = {}, ZERO
         for role, group, amount, t in self.booked():
             if role != "expense":
