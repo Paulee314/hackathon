@@ -160,3 +160,7 @@ On the demo month, skipping pickups over 3 miles would have cost $332.58, becaus
 ## Built during the hackathon
 
 Everything here was written during the event unless listed in [PRE-EXISTING.md](PRE-EXISTING.md).
+
+## License
+
+MIT, see [LICENSE](LICENSE). The demo data in `samples/` is synthetic: the company, people, accounts and transactions are made up.
